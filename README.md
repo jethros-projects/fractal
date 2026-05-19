@@ -5,7 +5,7 @@ Fractal is a native macOS menu bar focus tool for short, precise work blocks. It
 ## Requirements
 
 - macOS 13 or newer
-- Xcode 16 or newer, or the matching Swift toolchain on macOS
+- Xcode 15 or newer, or the matching Swift toolchain on macOS
 
 ## Run
 

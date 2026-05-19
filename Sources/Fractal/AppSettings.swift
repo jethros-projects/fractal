@@ -1,4 +1,6 @@
+#if canImport(Combine)
 import Combine
+#endif
 import Foundation
 
 @MainActor
@@ -12,6 +14,7 @@ final class AppSettings: ObservableObject {
                 blockLengthMinutes = clampedValue
             }
             defaults.set(blockLengthMinutes, forKey: Keys.blockLengthMinutes)
+            onBlockLengthMinutesChanged?()
         }
     }
 
@@ -34,6 +37,7 @@ final class AppSettings: ObservableObject {
     }
 
     private let defaults: UserDefaults
+    var onBlockLengthMinutesChanged: (() -> Void)?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

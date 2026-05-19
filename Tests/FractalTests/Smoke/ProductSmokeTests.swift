@@ -1,34 +1,32 @@
 @testable import FractalCore
-import Testing
-import Foundation
+import XCTest
 
-struct ProductSmokeTests {
-    @MainActor
-    @Test
-    func testCoreObjectsCanColdStartTogether() {
-        let rig = makeRig()
+final class ProductSmokeTests: XCTestCase {
+    func testCoreObjectsCanColdStartTogether() async {
+        await MainActor.run {
+            let rig = makeRig()
 
-        XCTAssertEqual(rig.settings.blockLengthMinutes, 15)
-        XCTAssertTrue(rig.historyStore.sessions.isEmpty)
-        XCTAssertEqual(rig.timer.state, .idle)
-        XCTAssertEqual(rig.timer.displayClock, "15:00")
+            XCTAssertEqual(rig.settings.blockLengthMinutes, 15)
+            XCTAssertTrue(rig.historyStore.sessions.isEmpty)
+            XCTAssertEqual(rig.timer.state, .idle)
+            XCTAssertEqual(rig.timer.displayClock, "15:00")
+        }
     }
 
-    @MainActor
-    @Test
-    func testTimerCanStartAndResetWithoutHistorySideEffects() {
-        let rig = makeRig(blockLengthMinutes: 5)
+    func testTimerCanStartAndResetWithoutHistorySideEffects() async {
+        await MainActor.run {
+            let rig = makeRig(blockLengthMinutes: 5)
 
-        rig.timer.topic = "Smoke"
-        rig.timer.startOrResume()
-        rig.timer.reset()
+            rig.timer.topic = "Smoke"
+            rig.timer.startOrResume()
+            rig.timer.reset()
 
-        XCTAssertEqual(rig.timer.state, .idle)
-        XCTAssertEqual(rig.timer.remainingSeconds, 300)
-        XCTAssertTrue(rig.historyStore.sessions.isEmpty)
+            XCTAssertEqual(rig.timer.state, .idle)
+            XCTAssertEqual(rig.timer.remainingSeconds, 300)
+            XCTAssertTrue(rig.historyStore.sessions.isEmpty)
+        }
     }
 
-    @Test
     func testInfoPlistDeclaresMenuBarOnlyAppBundle() throws {
         let plistURL = packageRootURL()
             .appendingPathComponent("Support")
@@ -50,7 +48,6 @@ struct ProductSmokeTests {
         XCTAssertEqual(plist["NSHighResolutionCapable"] as? Bool, true)
     }
 
-    @Test
     func testPackageAppScriptIsExecutableAndUsesReleaseBuild() throws {
         let scriptURL = packageRootURL()
             .appendingPathComponent("Scripts")
@@ -65,7 +62,6 @@ struct ProductSmokeTests {
         XCTAssertTrue(script.contains("Fractal.app"))
     }
 
-    @Test
     func testPackageManifestDefinesExecutableAndTestTargets() throws {
         let manifestURL = packageRootURL().appendingPathComponent("Package.swift")
         let manifest = try String(contentsOf: manifestURL)
@@ -78,7 +74,6 @@ struct ProductSmokeTests {
         XCTAssertTrue(manifest.contains("name: \"FractalTests\""))
     }
 
-    @Test
     func testReadmeDocumentsLocalRunPackageAndTestCommands() throws {
         let readmeURL = packageRootURL().appendingPathComponent("README.md")
         let readme = try String(contentsOf: readmeURL)

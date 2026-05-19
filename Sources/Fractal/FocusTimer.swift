@@ -1,4 +1,6 @@
+#if canImport(Combine)
 import Combine
+#endif
 import Foundation
 
 enum FocusTimerState: Equatable {
@@ -32,7 +34,6 @@ final class FocusTimer: ObservableObject {
     private let historyStore: HistoryStore
     private let timeSource: FractalTimeSource
     private let tickerScheduler: FractalTickerScheduling
-    private var cancellables = Set<AnyCancellable>()
     private var ticker: FractalTickerToken?
     private var deadline: Date?
     private var blockStartedAt: Date?
@@ -55,14 +56,9 @@ final class FocusTimer: ObservableObject {
         remainingSeconds = settings.blockLengthSeconds
         activeBlockDurationSeconds = settings.blockLengthSeconds
 
-        settings.$blockLengthMinutes
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                Task { @MainActor in
-                    self?.syncDurationFromSettings()
-                }
-            }
-            .store(in: &cancellables)
+        settings.onBlockLengthMinutesChanged = { [weak self] in
+            self?.syncDurationFromSettings()
+        }
     }
 
     var isActive: Bool {

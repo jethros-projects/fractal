@@ -1,37 +1,6 @@
 @testable import FractalCore
 import Foundation
-import Testing
-
-private struct TestUnwrapError: Error {}
-
-func XCTAssertEqual<T: Equatable>(_ lhs: T, _ rhs: T) {
-    #expect(lhs == rhs)
-}
-
-func XCTAssertTrue(_ expression: @autoclosure () -> Bool) {
-    #expect(expression())
-}
-
-func XCTAssertFalse(_ expression: @autoclosure () -> Bool) {
-    #expect(!expression())
-}
-
-func XCTAssertNil<T>(_ expression: @autoclosure () -> T?) {
-    #expect(expression() == nil)
-}
-
-func XCTAssertGreaterThanOrEqual<T: Comparable>(_ lhs: T, _ rhs: T) {
-    #expect(lhs >= rhs)
-}
-
-func XCTUnwrap<T>(_ expression: @autoclosure () throws -> T?) throws -> T {
-    let value = try expression()
-    #expect(value != nil)
-    guard let unwrapped = value else {
-        throw TestUnwrapError()
-    }
-    return unwrapped
-}
+import XCTest
 
 final class TestTimeSource: FractalTimeSource {
     private(set) var now: Date
@@ -94,105 +63,90 @@ final class ManualTickerToken: FractalTickerToken {
 }
 
 @MainActor
-final class TestRig {
+struct TestRig {
     let defaultsSuiteName: String
     let defaults: UserDefaults
-    let tempDirectory: URL
     let historyFileURL: URL
     let settings: AppSettings
     let historyStore: HistoryStore
     let timeSource: TestTimeSource
     let tickerScheduler: ManualTickerScheduler
     let timer: FocusTimer
-    init(
-        defaultsSuiteName: String,
-        defaults: UserDefaults,
-        tempDirectory: URL,
-        historyFileURL: URL,
-        settings: AppSettings,
-        historyStore: HistoryStore,
-        timeSource: TestTimeSource,
-        tickerScheduler: ManualTickerScheduler,
-        timer: FocusTimer
-    ) {
-        self.defaultsSuiteName = defaultsSuiteName
-        self.defaults = defaults
-        self.tempDirectory = tempDirectory
-        self.historyFileURL = historyFileURL
-        self.settings = settings
-        self.historyStore = historyStore
-        self.timeSource = timeSource
-        self.tickerScheduler = tickerScheduler
-        self.timer = timer
-    }
-
-    deinit {
-        defaults.removePersistentDomain(forName: defaultsSuiteName)
-        try? FileManager.default.removeItem(at: tempDirectory)
-    }
 }
 
-func packageRootURL(filePath: String = #filePath) -> URL {
-    var directory = URL(fileURLWithPath: filePath).deletingLastPathComponent()
+extension XCTestCase {
+    func packageRootURL(filePath: String = #filePath) -> URL {
+        var directory = URL(fileURLWithPath: filePath).deletingLastPathComponent()
 
-    for _ in 0..<8 {
-        if FileManager.default.fileExists(atPath: directory.appendingPathComponent("Package.swift").path) {
-            return directory
+        for _ in 0..<8 {
+            if FileManager.default.fileExists(atPath: directory.appendingPathComponent("Package.swift").path) {
+                return directory
+            }
+            directory.deleteLastPathComponent()
         }
-        directory.deleteLastPathComponent()
+
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     }
 
-    return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-}
+    @MainActor
+    func makeRig(
+        blockLengthMinutes: Int = 15,
+        now: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        function: String = #function
+    ) -> TestRig {
+        let suiteName = "app.fractal.tests.\(function).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(blockLengthMinutes, forKey: "blockLengthMinutes")
 
-@MainActor
-func makeRig(
-    blockLengthMinutes: Int = 15,
-    now: Date = Date(timeIntervalSince1970: 1_700_000_000),
-    function: String = #function
-) -> TestRig {
-    let suiteName = "app.fractal.tests.\(function).\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defaults.removePersistentDomain(forName: suiteName)
-    defaults.set(blockLengthMinutes, forKey: "blockLengthMinutes")
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FractalTests-\(UUID().uuidString)", isDirectory: true)
+        let historyFileURL = tempDirectory.appendingPathComponent("sessions.json")
 
-    let tempDirectory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("FractalTests-\(UUID().uuidString)", isDirectory: true)
-    let historyFileURL = tempDirectory.appendingPathComponent("sessions.json")
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
 
-    let settings = AppSettings(defaults: defaults)
-    let historyStore = HistoryStore(fileURL: historyFileURL)
-    let timeSource = TestTimeSource(now: now)
-    let tickerScheduler = ManualTickerScheduler()
-    let timer = FocusTimer(
-        settings: settings,
-        historyStore: historyStore,
-        timeSource: timeSource,
-        tickerScheduler: tickerScheduler
-    )
+        let settings = AppSettings(defaults: defaults)
+        let historyStore = HistoryStore(fileURL: historyFileURL)
+        let timeSource = TestTimeSource(now: now)
+        let tickerScheduler = ManualTickerScheduler()
+        let timer = FocusTimer(
+            settings: settings,
+            historyStore: historyStore,
+            timeSource: timeSource,
+            tickerScheduler: tickerScheduler
+        )
 
-    return TestRig(
-        defaultsSuiteName: suiteName,
-        defaults: defaults,
-        tempDirectory: tempDirectory,
-        historyFileURL: historyFileURL,
-        settings: settings,
-        historyStore: historyStore,
-        timeSource: timeSource,
-        tickerScheduler: tickerScheduler,
-        timer: timer
-    )
-}
+        return TestRig(
+            defaultsSuiteName: suiteName,
+            defaults: defaults,
+            historyFileURL: historyFileURL,
+            settings: settings,
+            historyStore: historyStore,
+            timeSource: timeSource,
+            tickerScheduler: tickerScheduler,
+            timer: timer
+        )
+    }
 
-func temporaryHistoryURL(function: String = #function) -> URL {
-    let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("FractalHistoryStoreTests-\(function)-\(UUID().uuidString)", isDirectory: true)
-    return directory.appendingPathComponent("sessions.json")
-}
+    func temporaryHistoryURL(function: String = #function) -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FractalHistoryStoreTests-\(function)-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        return directory.appendingPathComponent("sessions.json")
+    }
 
-func isolatedDefaults(function: String = #function) -> (UserDefaults, String) {
-    let suiteName = "app.fractal.settings.\(function).\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defaults.removePersistentDomain(forName: suiteName)
-    return (defaults, suiteName)
+    func isolatedDefaults(function: String = #function) -> (UserDefaults, String) {
+        let suiteName = "app.fractal.settings.\(function).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        return (defaults, suiteName)
+    }
 }

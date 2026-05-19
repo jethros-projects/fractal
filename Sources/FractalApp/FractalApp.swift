@@ -1,7 +1,8 @@
+import FractalCore
 import SwiftUI
 
 @main
-struct FractalApp: App {
+struct FractalApplication: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {

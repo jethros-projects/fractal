@@ -3,7 +3,7 @@ import Combine
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let historyStore = HistoryStore()
     private lazy var focusTimer = FocusTimer(settings: settings, historyStore: historyStore)
@@ -13,7 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var completionPanelController: CompletionPanelController?
     private var cancellables = Set<AnyCancellable>()
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    public override init() {
+        super.init()
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
         setupPopover()
@@ -26,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStatusItem()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    public func applicationWillTerminate(_ notification: Notification) {
         focusTimer.pause()
     }
 

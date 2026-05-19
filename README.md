@@ -30,6 +30,20 @@ The app runs as an accessory app, so it lives in the menu bar instead of the Doc
 ~/Library/Application Support/Fractal/sessions.json
 ```
 
+## Test
+
+Run the full local suite on macOS with:
+
+```sh
+swift test
+```
+
+The suite is intentionally split into small, atomic checks:
+
+- `Unit` covers session formatting, settings persistence, history storage, and deterministic timer behavior.
+- `Smoke` verifies the package, app bundle metadata, packaging script, and cold-start wiring.
+- `E2E` drives complete focus-block lifecycles with an injected clock, including complete, continue, switch, pause/resume, log-only, persistence, and focused-time totals.
+
 ## Features
 
 - Live menu bar countdown while a block is active

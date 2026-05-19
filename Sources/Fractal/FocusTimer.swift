@@ -30,8 +30,10 @@ final class FocusTimer: ObservableObject {
 
     private let settings: AppSettings
     private let historyStore: HistoryStore
+    private let timeSource: FractalTimeSource
+    private let tickerScheduler: FractalTickerScheduling
     private var cancellables = Set<AnyCancellable>()
-    private var ticker: Timer?
+    private var ticker: FractalTickerToken?
     private var deadline: Date?
     private var blockStartedAt: Date?
     private var activeBlockDurationSeconds: Int
@@ -40,9 +42,16 @@ final class FocusTimer: ObservableObject {
     var onUpdate: (() -> Void)?
     var onBlockCompleted: ((FocusSession) -> Void)?
 
-    init(settings: AppSettings, historyStore: HistoryStore) {
+    init(
+        settings: AppSettings,
+        historyStore: HistoryStore,
+        timeSource: FractalTimeSource = SystemTimeSource(),
+        tickerScheduler: FractalTickerScheduling = RunLoopTickerScheduler()
+    ) {
         self.settings = settings
         self.historyStore = historyStore
+        self.timeSource = timeSource
+        self.tickerScheduler = tickerScheduler
         remainingSeconds = settings.blockLengthSeconds
         activeBlockDurationSeconds = settings.blockLengthSeconds
 
@@ -93,7 +102,7 @@ final class FocusTimer: ObservableObject {
         }
 
         if let deadline {
-            remainingSeconds = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+            remainingSeconds = max(0, Int(ceil(deadline.timeIntervalSince(timeSource.now))))
         }
 
         ticker?.invalidate()
@@ -171,25 +180,19 @@ final class FocusTimer: ObservableObject {
 
     private func beginRunning() {
         if blockStartedAt == nil {
-            blockStartedAt = Date()
+            blockStartedAt = timeSource.now
         }
 
         state = .running
-        deadline = Date().addingTimeInterval(TimeInterval(remainingSeconds))
+        deadline = timeSource.now.addingTimeInterval(TimeInterval(remainingSeconds))
         scheduleTicker()
         tick()
     }
 
     private func scheduleTicker() {
         ticker?.invalidate()
-        ticker = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tick()
-            }
-        }
-
-        if let ticker {
-            RunLoop.main.add(ticker, forMode: .common)
+        ticker = tickerScheduler.schedule(repeatingEvery: 0.25) { [weak self] in
+            self?.tick()
         }
     }
 
@@ -198,7 +201,7 @@ final class FocusTimer: ObservableObject {
             return
         }
 
-        let secondsLeft = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+        let secondsLeft = max(0, Int(ceil(deadline.timeIntervalSince(timeSource.now))))
         if secondsLeft != remainingSeconds {
             remainingSeconds = secondsLeft
         }
@@ -220,7 +223,7 @@ final class FocusTimer: ObservableObject {
         remainingSeconds = 0
         state = .completed
 
-        let endedAt = Date()
+        let endedAt = timeSource.now
         let session = FocusSession(
             topic: topic,
             durationSeconds: activeBlockDurationSeconds,

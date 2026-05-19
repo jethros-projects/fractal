@@ -11,9 +11,19 @@ let package = Package(
         .executable(name: "Fractal", targets: ["Fractal"])
     ],
     targets: [
+        .target(
+            name: "FractalCore",
+            path: "Sources/Fractal"
+        ),
         .executableTarget(
             name: "Fractal",
-            path: "Sources/Fractal"
+            dependencies: ["FractalCore"],
+            path: "Sources/FractalApp"
+        ),
+        .testTarget(
+            name: "FractalTests",
+            dependencies: ["FractalCore"],
+            path: "Tests/FractalTests"
         )
     ]
 )

@@ -4,4 +4,5 @@ DerivedData/
 *.xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
+*.xcresult/
 *.DS_Store

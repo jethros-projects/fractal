@@ -7,6 +7,10 @@ final class AppSettings: ObservableObject {
 
     @Published var blockLengthMinutes: Int {
         didSet {
+            let clampedValue = Self.clampedBlockLength(blockLengthMinutes)
+            if blockLengthMinutes != clampedValue {
+                blockLengthMinutes = clampedValue
+            }
             defaults.set(blockLengthMinutes, forKey: Keys.blockLengthMinutes)
         }
     }
@@ -35,7 +39,7 @@ final class AppSettings: ObservableObject {
         self.defaults = defaults
 
         let storedMinutes = defaults.integer(forKey: Keys.blockLengthMinutes)
-        blockLengthMinutes = storedMinutes == 0 ? 15 : max(1, min(storedMinutes, 240))
+        blockLengthMinutes = storedMinutes == 0 ? 15 : Self.clampedBlockLength(storedMinutes)
 
         if defaults.object(forKey: Keys.soundEnabled) == nil {
             soundEnabled = true
@@ -69,5 +73,9 @@ final class AppSettings: ObservableObject {
         static let soundEnabled = "soundEnabled"
         static let autoStartAfterContinue = "autoStartAfterContinue"
         static let showSecondsInMenuBar = "showSecondsInMenuBar"
+    }
+
+    private static func clampedBlockLength(_ minutes: Int) -> Int {
+        max(1, min(minutes, 240))
     }
 }

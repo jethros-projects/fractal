@@ -1,7 +1,9 @@
 @testable import FractalCore
-import XCTest
+import Testing
+import Foundation
 
-final class FocusSessionTests: XCTestCase {
+struct FocusSessionTests {
+    @Test
     func testTopicDisplayNameUsesTopicWhenPresent() {
         let session = FocusSession(
             topic: "Writing",
@@ -13,6 +15,7 @@ final class FocusSessionTests: XCTestCase {
         XCTAssertEqual(session.topicDisplayName, "Writing")
     }
 
+    @Test
     func testTopicDisplayNameFallsBackWhenTopicIsNil() {
         let session = FocusSession(
             topic: nil,
@@ -24,6 +27,7 @@ final class FocusSessionTests: XCTestCase {
         XCTAssertEqual(session.topicDisplayName, "No topic set")
     }
 
+    @Test
     func testTopicIsTrimmedOnInitialization() {
         let session = FocusSession(
             topic: "  Deep work  ",
@@ -35,6 +39,7 @@ final class FocusSessionTests: XCTestCase {
         XCTAssertEqual(session.topic, "Deep work")
     }
 
+    @Test
     func testWhitespaceTopicIsStoredAsNil() {
         let session = FocusSession(
             topic: "   \n\t ",
@@ -47,10 +52,12 @@ final class FocusSessionTests: XCTestCase {
         XCTAssertEqual(session.topicDisplayName, "No topic set")
     }
 
+    @Test
     func testTrimmedNonEmptyReturnsTrimmedValue() {
         XCTAssertEqual("  Plan launch  ".trimmedNonEmpty, "Plan launch")
     }
 
+    @Test
     func testTrimmedNonEmptyReturnsNilForBlankString() {
         XCTAssertNil(" \n\t ".trimmedNonEmpty)
     }

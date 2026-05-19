@@ -1,8 +1,10 @@
 @testable import FractalCore
-import XCTest
+import Testing
+import Foundation
 
-final class FocusLifecycleE2ETests: XCTestCase {
+struct FocusLifecycleE2ETests {
     @MainActor
+    @Test
     func testE2ECompleteSingleBlockAndPersistHistory() {
         let start = Date(timeIntervalSince1970: 2_000_000)
         let rig = makeRig(blockLengthMinutes: 15, now: start)
@@ -30,6 +32,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2EContinueRestartsSameTopicAndLogsTwoBlocks() {
         let rig = makeRig(blockLengthMinutes: 10)
 
@@ -49,6 +52,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2EContinueCanPrepareNextBlockWithoutAutoStarting() {
         let rig = makeRig(blockLengthMinutes: 25)
         rig.settings.autoStartAfterContinue = false
@@ -65,6 +69,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2ESwitchStartsNewTopicAndLogsDistinctSessions() {
         let rig = makeRig(blockLengthMinutes: 5)
 
@@ -80,6 +85,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2ESwitchCanSetTopicWithoutStartingNextBlock() {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -95,6 +101,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2ELogOnlyKeepsCompletedSessionAndStopsThere() {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -110,6 +117,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2EPauseResumeCompletesOnlyAfterRemainingActiveTime() {
         let start = Date(timeIntervalSince1970: 3_000_000)
         let rig = makeRig(blockLengthMinutes: 1, now: start)
@@ -142,6 +150,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2EHistoryTotalsUpdateAcrossTodayAndThisWeek() {
         let calendar = utcCalendar()
         let rig = makeRig(
@@ -173,6 +182,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2EChangingBlockLengthAffectsNextBlockAfterCurrentCompletion() async {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -189,6 +199,7 @@ final class FocusLifecycleE2ETests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testE2EBlankTopicIsSavedAsNoTopicSession() {
         let rig = makeRig(blockLengthMinutes: 5)
 

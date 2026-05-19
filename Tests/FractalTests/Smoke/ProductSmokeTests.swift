@@ -1,8 +1,10 @@
 @testable import FractalCore
-import XCTest
+import Testing
+import Foundation
 
-final class ProductSmokeTests: XCTestCase {
+struct ProductSmokeTests {
     @MainActor
+    @Test
     func testCoreObjectsCanColdStartTogether() {
         let rig = makeRig()
 
@@ -13,6 +15,7 @@ final class ProductSmokeTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testTimerCanStartAndResetWithoutHistorySideEffects() {
         let rig = makeRig(blockLengthMinutes: 5)
 
@@ -25,6 +28,7 @@ final class ProductSmokeTests: XCTestCase {
         XCTAssertTrue(rig.historyStore.sessions.isEmpty)
     }
 
+    @Test
     func testInfoPlistDeclaresMenuBarOnlyAppBundle() throws {
         let plistURL = packageRootURL()
             .appendingPathComponent("Support")
@@ -46,6 +50,7 @@ final class ProductSmokeTests: XCTestCase {
         XCTAssertEqual(plist["NSHighResolutionCapable"] as? Bool, true)
     }
 
+    @Test
     func testPackageAppScriptIsExecutableAndUsesReleaseBuild() throws {
         let scriptURL = packageRootURL()
             .appendingPathComponent("Scripts")
@@ -60,6 +65,7 @@ final class ProductSmokeTests: XCTestCase {
         XCTAssertTrue(script.contains("Fractal.app"))
     }
 
+    @Test
     func testPackageManifestDefinesExecutableAndTestTargets() throws {
         let manifestURL = packageRootURL().appendingPathComponent("Package.swift")
         let manifest = try String(contentsOf: manifestURL)
@@ -72,6 +78,7 @@ final class ProductSmokeTests: XCTestCase {
         XCTAssertTrue(manifest.contains("name: \"FractalTests\""))
     }
 
+    @Test
     func testReadmeDocumentsLocalRunPackageAndTestCommands() throws {
         let readmeURL = packageRootURL().appendingPathComponent("README.md")
         let readme = try String(contentsOf: readmeURL)

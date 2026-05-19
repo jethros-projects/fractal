@@ -1,8 +1,10 @@
 @testable import FractalCore
-import XCTest
+import Testing
+import Foundation
 
-final class HistoryStoreTests: XCTestCase {
+struct HistoryStoreTests {
     @MainActor
+    @Test
     func testMissingHistoryFileLoadsEmptySessions() {
         let store = HistoryStore(fileURL: temporaryHistoryURL())
 
@@ -11,6 +13,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testAppendAddsSessionInMemory() {
         let store = HistoryStore(fileURL: temporaryHistoryURL())
         let session = makeSession(topic: "Planning", start: 100, end: 1_000)
@@ -21,6 +24,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testAppendPersistsSessionToDisk() {
         let url = temporaryHistoryURL()
         let store = HistoryStore(fileURL: url)
@@ -33,6 +37,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testAppendSortsSessionsChronologicallyByStartTime() {
         let store = HistoryStore(fileURL: temporaryHistoryURL())
         let latest = makeSession(topic: "Latest", start: 300, end: 400)
@@ -47,6 +52,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testSessionsNewestFirstSortsByEndTimeDescending() {
         let store = HistoryStore(fileURL: temporaryHistoryURL())
         let firstEnded = makeSession(topic: "First", start: 100, end: 200)
@@ -61,6 +67,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMalformedHistoryFileLoadsAsEmptyInsteadOfThrowing() throws {
         let url = temporaryHistoryURL()
         try FileManager.default.createDirectory(
@@ -75,6 +82,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testTodayTotalIncludesOnlySessionsStartingOnThatDay() {
         let store = HistoryStore(fileURL: temporaryHistoryURL())
         let calendar = utcCalendar()
@@ -103,6 +111,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testThisWeekTotalIncludesOnlyCurrentWeekSessions() {
         let store = HistoryStore(fileURL: temporaryHistoryURL())
         let calendar = utcCalendar()
@@ -136,6 +145,7 @@ final class HistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testAppendingAfterMalformedLoadOverwritesWithValidHistory() {
         let url = temporaryHistoryURL()
         try? FileManager.default.createDirectory(

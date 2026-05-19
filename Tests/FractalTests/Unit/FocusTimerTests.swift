@@ -1,8 +1,10 @@
 @testable import FractalCore
-import XCTest
+import Testing
+import Foundation
 
-final class FocusTimerTests: XCTestCase {
+struct FocusTimerTests {
     @MainActor
+    @Test
     func testInitialStateUsesConfiguredDuration() {
         let rig = makeRig(blockLengthMinutes: 20)
 
@@ -14,6 +16,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testTopicDisplayNameFallsBackWhenEmpty() {
         let rig = makeRig()
 
@@ -23,6 +26,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testTopicDisplayNameTrimsWhitespace() {
         let rig = makeRig()
 
@@ -32,6 +36,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStartBeginsRunningAndSchedulesTicker() {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -46,6 +51,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStartWhileRunningIsNoOp() {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -57,6 +63,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testManualTickUpdatesRemainingSeconds() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -70,6 +77,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testPauseCapturesRemainingTimeAndInvalidatesTicker() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -83,6 +91,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testPauseWhenIdleIsNoOp() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -93,6 +102,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testResumeAfterPauseCreatesFreshTicker() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -108,6 +118,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testResetReturnsToIdleAndConfiguredDuration() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -123,6 +134,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStartNewBlockCanPrepareWithoutStarting() {
         let rig = makeRig(blockLengthMinutes: 10)
 
@@ -135,6 +147,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStartNewBlockCanStartImmediately() {
         let rig = makeRig(blockLengthMinutes: 10)
 
@@ -147,6 +160,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testCompletionCreatesHistorySessionAndCallback() {
         let rig = makeRig(blockLengthMinutes: 1)
         var completedSessions: [FocusSession] = []
@@ -166,6 +180,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testCompletionUsesConfiguredStartAndEndTimes() {
         let start = Date(timeIntervalSince1970: 123_456)
         let rig = makeRig(blockLengthMinutes: 1, now: start)
@@ -180,6 +195,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testCompletionOnlyHappensOnceWhenTickerFiresAgain() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -194,6 +210,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testLogOnlyAfterCompletionReturnsToIdleWithoutAddingSession() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -208,6 +225,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMenuBarTitleShowsSecondsWhenEnabled() {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -215,6 +233,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMenuBarTitleRoundsUpMinutesWhenSecondsAreHidden() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -226,6 +245,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMenuBarTitleShowsZeroMinutesAtCompletionWhenSecondsAreHidden() {
         let rig = makeRig(blockLengthMinutes: 1)
 
@@ -237,6 +257,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMenuBarTitleFormatsHoursWhenSecondsAreHidden() {
         let rig = makeRig(blockLengthMinutes: 75)
 
@@ -244,6 +265,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMenuBarTitleFormatsWholeHoursWhenSecondsAreHidden() {
         let rig = makeRig(blockLengthMinutes: 60)
 
@@ -251,6 +273,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testSettingsChangeWhileIdleUpdatesRemainingDuration() async {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -262,6 +285,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testSettingsChangeWhileRunningDoesNotMutateActiveBlock() async {
         let rig = makeRig(blockLengthMinutes: 15)
 
@@ -274,6 +298,7 @@ final class FocusTimerTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testUpdateCallbackFiresForObservableChanges() {
         let rig = makeRig()
         var updateCount = 0

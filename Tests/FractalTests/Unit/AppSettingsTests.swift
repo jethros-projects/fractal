@@ -1,8 +1,10 @@
 @testable import FractalCore
-import XCTest
+import Testing
+import Foundation
 
-final class AppSettingsTests: XCTestCase {
+struct AppSettingsTests {
     @MainActor
+    @Test
     func testDefaultsMatchProductDefaults() {
         let (defaults, _) = isolatedDefaults()
 
@@ -16,6 +18,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStoredBlockLengthIsLoaded() {
         let (defaults, _) = isolatedDefaults()
         defaults.set(45, forKey: "blockLengthMinutes")
@@ -27,6 +30,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStoredBooleanPreferencesAreLoaded() {
         let (defaults, _) = isolatedDefaults()
         defaults.set(false, forKey: "soundEnabled")
@@ -41,6 +45,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testBlockLengthPersistsWhenChanged() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -52,6 +57,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testBlockLengthClampsBelowRange() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -63,6 +69,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testBlockLengthClampsAboveRange() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -74,6 +81,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStoredBlockLengthClampsBelowRangeOnInitialization() {
         let (defaults, _) = isolatedDefaults()
         defaults.set(-20, forKey: "blockLengthMinutes")
@@ -84,6 +92,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testStoredBlockLengthClampsAboveRangeOnInitialization() {
         let (defaults, _) = isolatedDefaults()
         defaults.set(999, forKey: "blockLengthMinutes")
@@ -94,6 +103,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testPresetRecognitionIsTrueForPresetLength() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -104,6 +114,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testPresetRecognitionIsFalseForCustomLength() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -114,6 +125,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testSoundPreferencePersists() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -124,6 +136,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testAutoStartPreferencePersists() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)
@@ -134,6 +147,7 @@ final class AppSettingsTests: XCTestCase {
     }
 
     @MainActor
+    @Test
     func testMenuBarSecondsPreferencePersists() {
         let (defaults, _) = isolatedDefaults()
         let settings = AppSettings(defaults: defaults)

@@ -32,10 +32,3 @@ extension String {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
-
-extension Int {
-    var minutesLabel: String {
-        let minutes = max(1, self / 60)
-        return "\(minutes)-minute"
-    }
-}

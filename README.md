@@ -38,6 +38,14 @@ Run the full local suite on macOS with:
 swift test
 ```
 
+If `swift test` warns that the selected toolchain cannot import XCTest, point
+the command line tools at a full Xcode install and rerun:
+
+```sh
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+swift test
+```
+
 The suite is intentionally split into small, atomic checks:
 
 - `Unit` covers session formatting, settings persistence, history storage, and deterministic timer behavior.

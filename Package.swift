@@ -3,13 +3,7 @@
 import PackageDescription
 
 var products: [Product] = []
-var targets: [Target] = [
-    .testTarget(
-        name: "FractalTests",
-        dependencies: ["FractalCore"],
-        path: "Tests/FractalTests"
-    )
-]
+var targets: [Target] = []
 
 #if os(macOS)
 products.append(.executable(name: "Fractal", targets: ["Fractal"]))
@@ -40,6 +34,29 @@ targets.insert(
         ]
     ),
     at: 0
+)
+#endif
+
+#if canImport(XCTest)
+targets.append(
+    .testTarget(
+        name: "FractalTests",
+        dependencies: ["FractalCore"],
+        path: "Tests/FractalTests"
+    )
+)
+#else
+print("""
+Fractal warning: the selected Swift toolchain cannot import XCTest, so the real test suite is skipped.
+On macOS, select a full Xcode toolchain before running tests:
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+""")
+targets.append(
+    .testTarget(
+        name: "FractalTests",
+        dependencies: ["FractalCore"],
+        path: "Tests/ToolchainUnavailableTests"
+    )
 )
 #endif
 

@@ -1,0 +1,261 @@
+import Combine
+import Foundation
+
+enum FocusTimerState: Equatable {
+    case idle
+    case running
+    case paused
+    case completed
+}
+
+@MainActor
+final class FocusTimer: ObservableObject {
+    @Published var state: FocusTimerState = .idle {
+        didSet {
+            notifyUpdate()
+        }
+    }
+
+    @Published var topic: String = "" {
+        didSet {
+            notifyUpdate()
+        }
+    }
+
+    @Published private(set) var remainingSeconds: Int {
+        didSet {
+            notifyUpdate()
+        }
+    }
+
+    private let settings: AppSettings
+    private let historyStore: HistoryStore
+    private var cancellables = Set<AnyCancellable>()
+    private var ticker: Timer?
+    private var deadline: Date?
+    private var blockStartedAt: Date?
+    private var activeBlockDurationSeconds: Int
+    private var isFinishing = false
+
+    var onUpdate: (() -> Void)?
+    var onBlockCompleted: ((FocusSession) -> Void)?
+
+    init(settings: AppSettings, historyStore: HistoryStore) {
+        self.settings = settings
+        self.historyStore = historyStore
+        remainingSeconds = settings.blockLengthSeconds
+        activeBlockDurationSeconds = settings.blockLengthSeconds
+
+        settings.$blockLengthMinutes
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.syncDurationFromSettings()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    var isActive: Bool {
+        state == .running || state == .paused || state == .completed
+    }
+
+    var progress: Double {
+        guard activeBlockDurationSeconds > 0 else {
+            return 0
+        }
+
+        return 1 - (Double(remainingSeconds) / Double(activeBlockDurationSeconds))
+    }
+
+    var displayClock: String {
+        Self.clockString(from: remainingSeconds, includeHoursWhenNeeded: true)
+    }
+
+    var topicDisplayName: String {
+        topic.trimmedNonEmpty ?? "No topic set"
+    }
+
+    func startOrResume() {
+        switch state {
+        case .idle, .completed:
+            startNewBlock(topic: topic, shouldStart: true)
+        case .paused:
+            resume()
+        case .running:
+            break
+        }
+    }
+
+    func pause() {
+        guard state == .running else {
+            return
+        }
+
+        if let deadline {
+            remainingSeconds = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+        }
+
+        ticker?.invalidate()
+        ticker = nil
+        deadline = nil
+        state = .paused
+    }
+
+    func reset() {
+        ticker?.invalidate()
+        ticker = nil
+        deadline = nil
+        blockStartedAt = nil
+        activeBlockDurationSeconds = settings.blockLengthSeconds
+        remainingSeconds = settings.blockLengthSeconds
+        state = .idle
+    }
+
+    func startNewBlock(topic newTopic: String, shouldStart: Bool) {
+        ticker?.invalidate()
+        ticker = nil
+        deadline = nil
+        blockStartedAt = nil
+        activeBlockDurationSeconds = settings.blockLengthSeconds
+        remainingSeconds = settings.blockLengthSeconds
+        topic = newTopic
+        state = .idle
+
+        if shouldStart {
+            beginRunning()
+        }
+    }
+
+    func continueCurrentTopic(shouldStart: Bool) {
+        startNewBlock(topic: topic, shouldStart: shouldStart)
+    }
+
+    func logOnlyAfterCompletion() {
+        ticker?.invalidate()
+        ticker = nil
+        deadline = nil
+        blockStartedAt = nil
+        activeBlockDurationSeconds = settings.blockLengthSeconds
+        remainingSeconds = settings.blockLengthSeconds
+        state = .idle
+    }
+
+    func menuBarTitle(showSeconds: Bool) -> String {
+        if showSeconds {
+            return Self.clockString(from: remainingSeconds, includeHoursWhenNeeded: false)
+        }
+
+        guard remainingSeconds > 0 else {
+            return "0m"
+        }
+
+        let minutes = max(1, Int(ceil(Double(remainingSeconds) / 60.0)))
+        if minutes >= 60 {
+            let hours = minutes / 60
+            let remainder = minutes % 60
+            return remainder == 0 ? "\(hours)h" : "\(hours)h \(remainder)m"
+        }
+
+        return "\(minutes)m"
+    }
+
+    private func resume() {
+        guard remainingSeconds > 0 else {
+            completeBlock()
+            return
+        }
+
+        beginRunning()
+    }
+
+    private func beginRunning() {
+        if blockStartedAt == nil {
+            blockStartedAt = Date()
+        }
+
+        state = .running
+        deadline = Date().addingTimeInterval(TimeInterval(remainingSeconds))
+        scheduleTicker()
+        tick()
+    }
+
+    private func scheduleTicker() {
+        ticker?.invalidate()
+        ticker = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.tick()
+            }
+        }
+
+        if let ticker {
+            RunLoop.main.add(ticker, forMode: .common)
+        }
+    }
+
+    private func tick() {
+        guard state == .running, let deadline else {
+            return
+        }
+
+        let secondsLeft = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+        if secondsLeft != remainingSeconds {
+            remainingSeconds = secondsLeft
+        }
+
+        if secondsLeft <= 0 {
+            completeBlock()
+        }
+    }
+
+    private func completeBlock() {
+        guard !isFinishing else {
+            return
+        }
+
+        isFinishing = true
+        ticker?.invalidate()
+        ticker = nil
+        deadline = nil
+        remainingSeconds = 0
+        state = .completed
+
+        let endedAt = Date()
+        let session = FocusSession(
+            topic: topic,
+            durationSeconds: activeBlockDurationSeconds,
+            startedAt: blockStartedAt ?? endedAt.addingTimeInterval(-TimeInterval(activeBlockDurationSeconds)),
+            endedAt: endedAt
+        )
+
+        historyStore.append(session)
+        onBlockCompleted?(session)
+        isFinishing = false
+    }
+
+    private func syncDurationFromSettings() {
+        guard state == .idle else {
+            return
+        }
+
+        activeBlockDurationSeconds = settings.blockLengthSeconds
+        remainingSeconds = settings.blockLengthSeconds
+    }
+
+    private func notifyUpdate() {
+        onUpdate?()
+    }
+
+    private static func clockString(from seconds: Int, includeHoursWhenNeeded: Bool) -> String {
+        let clamped = max(0, seconds)
+        let hours = clamped / 3600
+        let minutes = (clamped % 3600) / 60
+        let remaining = clamped % 60
+
+        if includeHoursWhenNeeded, hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, remaining)
+        }
+
+        return String(format: "%02d:%02d", minutes + (hours * 60), remaining)
+    }
+}

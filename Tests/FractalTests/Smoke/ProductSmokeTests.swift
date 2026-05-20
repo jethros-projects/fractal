@@ -59,7 +59,20 @@ final class ProductSmokeTests: XCTestCase {
         XCTAssertTrue(script.contains("set -euo pipefail"))
         XCTAssertTrue(script.contains("swift build -c release"))
         XCTAssertTrue(script.contains("Support/Info.plist"))
+        XCTAssertTrue(script.contains("Support/FractalLogo.svg"))
         XCTAssertTrue(script.contains("Fractal.app"))
+    }
+
+    func testFractalLogoSvgDefinesEquilateralMark() throws {
+        let logoURL = packageRootURL()
+            .appendingPathComponent("Support")
+            .appendingPathComponent("FractalLogo.svg")
+        let logo = try String(contentsOf: logoURL)
+
+        XCTAssertTrue(logo.contains("viewBox=\"0 0 64 64\""))
+        XCTAssertTrue(logo.contains("M32 6L1.98 58H62.02L32 6Z"))
+        XCTAssertTrue(logo.contains("stroke-linecap=\"round\""))
+        XCTAssertTrue(logo.contains("stroke-linejoin=\"round\""))
     }
 
     func testPackageManifestDefinesExecutableAndTestTargets() throws {

@@ -55,8 +55,8 @@ struct FractalPopoverView: View {
     private var header: some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
-                Image(systemName: "circle.hexagongrid")
-                    .font(.system(size: 16, weight: .medium))
+                FractalLogoMark()
+                    .frame(width: 18, height: 18)
                     .foregroundStyle(.primary)
                 Text("Fractal")
                     .font(.system(size: 15, weight: .semibold))

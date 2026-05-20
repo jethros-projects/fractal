@@ -13,5 +13,6 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
 cp "$BUILD_DIR/Fractal" "$APP_DIR/Contents/MacOS/Fractal"
 cp "$ROOT_DIR/Support/Info.plist" "$APP_DIR/Contents/Info.plist"
+cp "$ROOT_DIR/Support/FractalLogo.svg" "$APP_DIR/Contents/Resources/FractalLogo.svg"
 
 echo "Created $APP_DIR"

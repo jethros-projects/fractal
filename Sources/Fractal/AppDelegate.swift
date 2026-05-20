@@ -7,6 +7,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let historyStore = HistoryStore()
     private lazy var focusTimer = FocusTimer(settings: settings, historyStore: historyStore)
+    private lazy var statusImage = Self.makeStatusImage()
 
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
@@ -97,20 +98,57 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         button.imagePosition = .imageLeading
 
         if focusTimer.isActive {
-            button.image = makeStatusImage()
+            button.image = statusImage
             button.title = focusTimer.menuBarTitle(showSeconds: settings.showSecondsInMenuBar)
             button.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         } else {
             button.title = ""
             button.font = .systemFont(ofSize: 13, weight: .medium)
-            button.image = makeStatusImage()
+            button.image = statusImage
         }
     }
 
-    private func makeStatusImage() -> NSImage? {
-        let image = NSImage(systemSymbolName: "circle.hexagongrid", accessibilityDescription: "Fractal")
-            ?? NSImage(systemSymbolName: "timelapse", accessibilityDescription: "Fractal")
-        image?.isTemplate = true
+    private static func makeStatusImage() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let triangles: [[CGPoint]] = [
+                [CGPoint(x: 32, y: 6), CGPoint(x: 1.98, y: 58), CGPoint(x: 62.02, y: 58)],
+                [CGPoint(x: 16.99, y: 32), CGPoint(x: 47.01, y: 32), CGPoint(x: 32, y: 58)],
+                [CGPoint(x: 24.5, y: 19), CGPoint(x: 39.5, y: 19), CGPoint(x: 32, y: 32)],
+                [CGPoint(x: 9.49, y: 45), CGPoint(x: 24.5, y: 45), CGPoint(x: 16.99, y: 58)],
+                [CGPoint(x: 39.5, y: 45), CGPoint(x: 54.51, y: 45), CGPoint(x: 47.01, y: 58)]
+            ]
+
+            func point(from source: CGPoint) -> CGPoint {
+                CGPoint(
+                    x: rect.minX + (source.x / 64) * rect.width,
+                    y: rect.maxY - (source.y / 64) * rect.height
+                )
+            }
+
+            func strokeTriangle(_ vertices: [CGPoint]) {
+                guard vertices.count == 3 else {
+                    return
+                }
+
+                let path = NSBezierPath()
+                path.move(to: point(from: vertices[0]))
+                path.line(to: point(from: vertices[1]))
+                path.line(to: point(from: vertices[2]))
+                path.close()
+                path.lineWidth = 1.45
+                path.lineJoinStyle = .round
+                path.lineCapStyle = .round
+                path.stroke()
+            }
+
+            NSColor.black.setStroke()
+            triangles.forEach(strokeTriangle)
+
+            return true
+        }
+
+        image.isTemplate = true
         return image
     }
 

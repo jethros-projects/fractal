@@ -92,21 +92,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         button.toolTip = "Fractal"
+        button.contentTintColor = nil
+        button.imageScaling = .scaleProportionallyDown
+        button.imagePosition = .imageLeading
 
         if focusTimer.isActive {
-            button.image = nil
+            button.image = makeStatusImage()
             button.title = focusTimer.menuBarTitle(showSeconds: settings.showSecondsInMenuBar)
             button.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
-            button.contentTintColor = focusTimer.state == .paused ? .secondaryLabelColor : .labelColor
         } else {
             button.title = ""
             button.font = .systemFont(ofSize: 13, weight: .medium)
-            let image = NSImage(systemSymbolName: "circle.hexagongrid", accessibilityDescription: "Fractal")
-                ?? NSImage(systemSymbolName: "timelapse", accessibilityDescription: "Fractal")
-            image?.isTemplate = true
-            button.image = image
-            button.contentTintColor = .labelColor
+            button.image = makeStatusImage()
         }
+    }
+
+    private func makeStatusImage() -> NSImage? {
+        let image = NSImage(systemSymbolName: "circle.hexagongrid", accessibilityDescription: "Fractal")
+            ?? NSImage(systemSymbolName: "timelapse", accessibilityDescription: "Fractal")
+        image?.isTemplate = true
+        return image
     }
 
     private func showCompletionPrompt(for session: FocusSession) {

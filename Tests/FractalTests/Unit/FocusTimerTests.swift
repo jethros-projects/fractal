@@ -132,6 +132,40 @@ final class FocusTimerTests: XCTestCase {
         }
     }
 
+    func testTerminateCurrentBlockCancelsRunningBlockWithoutHistory() async {
+        await MainActor.run {
+            let rig = makeRig(blockLengthMinutes: 1)
+
+            rig.timer.topic = "Wrong thing"
+            rig.timer.startOrResume()
+            rig.timeSource.advance(by: 20)
+            rig.timer.terminateCurrentBlock()
+
+            XCTAssertEqual(rig.timer.state, .idle)
+            XCTAssertEqual(rig.timer.remainingSeconds, 60)
+            XCTAssertEqual(rig.timer.progress, 0)
+            XCTAssertFalse(rig.timer.canTerminateCurrentBlock)
+            XCTAssertEqual(rig.tickerScheduler.activeTokenCount, 0)
+            XCTAssertTrue(rig.historyStore.sessions.isEmpty)
+        }
+    }
+
+    func testTerminateCurrentBlockCancelsPausedBlockWithoutHistory() async {
+        await MainActor.run {
+            let rig = makeRig(blockLengthMinutes: 1)
+
+            rig.timer.startOrResume()
+            rig.timeSource.advance(by: 20)
+            rig.timer.pause()
+            rig.timer.terminateCurrentBlock()
+
+            XCTAssertEqual(rig.timer.state, .idle)
+            XCTAssertEqual(rig.timer.remainingSeconds, 60)
+            XCTAssertEqual(rig.tickerScheduler.activeTokenCount, 0)
+            XCTAssertTrue(rig.historyStore.sessions.isEmpty)
+        }
+    }
+
     func testStartNewBlockCanPrepareWithoutStarting() async {
         await MainActor.run {
             let rig = makeRig(blockLengthMinutes: 10)

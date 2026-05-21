@@ -65,6 +65,10 @@ final class FocusTimer: ObservableObject {
         state == .running || state == .paused || state == .completed
     }
 
+    var canTerminateCurrentBlock: Bool {
+        state == .running || state == .paused
+    }
+
     var progress: Double {
         guard activeBlockDurationSeconds > 0 else {
             return 0
@@ -108,6 +112,10 @@ final class FocusTimer: ObservableObject {
     }
 
     func reset() {
+        terminateCurrentBlock()
+    }
+
+    func terminateCurrentBlock() {
         ticker?.invalidate()
         ticker = nil
         deadline = nil

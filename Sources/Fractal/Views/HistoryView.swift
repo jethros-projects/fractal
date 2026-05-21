@@ -180,11 +180,11 @@ private struct SessionRow: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(session.isUntracked ? .primary.opacity(0.03) : .primary.opacity(0.04))
+                .fill(Color.primary.opacity(session.isUntracked ? 0.03 : 0.04))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(session.isUntracked ? .primary.opacity(0.045) : .primary.opacity(0.055), lineWidth: 1)
+                .stroke(Color.primary.opacity(session.isUntracked ? 0.045 : 0.055), lineWidth: 1)
         )
     }
 }

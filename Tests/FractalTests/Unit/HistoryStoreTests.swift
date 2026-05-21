@@ -286,6 +286,65 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
+    func testFinishExpiredActiveDayClosesAtMidnight() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let calendar = utcCalendar()
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 30)
+            let midnight = date(year: 2026, month: 5, day: 20, hour: 0)
+            let afterMidnight = date(year: 2026, month: 5, day: 20, hour: 0, minute: 5)
+
+            store.startDay(at: dayStart, slotLengthSeconds: 15 * 60)
+
+            let generatedCount = store.finishExpiredActiveDay(now: afterMidnight, calendar: calendar)
+
+            XCTAssertEqual(generatedCount, 2)
+            XCTAssertNil(store.activeDayStartedAt)
+            XCTAssertNil(store.activeDaySlotLengthSeconds)
+            XCTAssertEqual(store.sessions.last?.endedAt, midnight)
+        }
+    }
+
+    func testFinishExpiredActiveDayDoesNothingBeforeMidnight() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let calendar = utcCalendar()
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 30)
+            let beforeMidnight = date(year: 2026, month: 5, day: 19, hour: 23, minute: 59)
+
+            store.startDay(at: dayStart, slotLengthSeconds: 15 * 60)
+
+            let generatedCount = store.finishExpiredActiveDay(now: beforeMidnight, calendar: calendar)
+
+            XCTAssertEqual(generatedCount, 0)
+            XCTAssertEqual(store.activeDayStartedAt, dayStart)
+            XCTAssertTrue(store.sessions.isEmpty)
+        }
+    }
+
+    func testFinishExpiredActiveDaySkipsAdditionalOccupiedIntervals() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let calendar = utcCalendar()
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 30)
+            let activeBlockStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 45)
+            let midnight = date(year: 2026, month: 5, day: 20, hour: 0)
+
+            store.startDay(at: dayStart, slotLengthSeconds: 15 * 60)
+
+            let generatedCount = store.finishExpiredActiveDay(
+                now: midnight,
+                calendar: calendar,
+                additionalOccupiedIntervals: [DateInterval(start: activeBlockStart, end: midnight)]
+            )
+
+            XCTAssertEqual(generatedCount, 1)
+            XCTAssertEqual(store.sessions.count, 1)
+            XCTAssertEqual(store.sessions.first?.startedAt, dayStart)
+            XCTAssertEqual(store.sessions.first?.endedAt, activeBlockStart)
+        }
+    }
+
     func testUpdatingUntrackedSlotWithTitleMakesItFocused() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())

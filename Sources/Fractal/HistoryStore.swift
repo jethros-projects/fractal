@@ -44,14 +44,22 @@ final class HistoryStore: ObservableObject {
         sessions.sorted { $0.endedAt > $1.endedAt }
     }
 
-    func activeDayPreviewSessions(until date: Date = Date()) -> [FocusSession] {
-        guard let startedAt = activeDayStartedAt, date > startedAt else {
+    func activeDayPreviewSessions(
+        until date: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [FocusSession] {
+        guard let startedAt = activeDayStartedAt else {
+            return []
+        }
+
+        let finishedAt = minDate(date, activeDayEnd(for: startedAt, calendar: calendar) ?? date)
+        guard finishedAt > startedAt else {
             return []
         }
 
         return untrackedSessions(
             from: startedAt,
-            to: date,
+            to: finishedAt,
             slotLengthSeconds: activeDaySlotLengthSeconds ?? Self.defaultDaySlotLengthSeconds,
             idProvider: deterministicSlotID
         )
@@ -90,6 +98,8 @@ final class HistoryStore: ObservableObject {
         at date: Date = Date(),
         slotLengthSeconds: Int = 15 * 60
     ) {
+        finishExpiredActiveDay(now: date)
+
         guard activeDayStartedAt == nil else {
             return
         }
@@ -102,7 +112,8 @@ final class HistoryStore: ObservableObject {
     @discardableResult
     func finishDay(
         at finishedAt: Date = Date(),
-        slotLengthSeconds: Int? = nil
+        slotLengthSeconds: Int? = nil,
+        additionalOccupiedIntervals: [DateInterval] = []
     ) -> Int {
         guard let startedAt = activeDayStartedAt else {
             return 0
@@ -120,7 +131,8 @@ final class HistoryStore: ObservableObject {
         let generatedSessions = untrackedSessions(
             from: startedAt,
             to: finishedAt,
-            slotLengthSeconds: daySlotLengthSeconds
+            slotLengthSeconds: daySlotLengthSeconds,
+            additionalOccupiedIntervals: additionalOccupiedIntervals
         )
 
         guard !generatedSessions.isEmpty else {
@@ -131,6 +143,26 @@ final class HistoryStore: ObservableObject {
         sessions.sort { $0.startedAt < $1.startedAt }
         save()
         return generatedSessions.count
+    }
+
+    @discardableResult
+    func finishExpiredActiveDay(
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        additionalOccupiedIntervals: [DateInterval] = []
+    ) -> Int {
+        guard
+            let startedAt = activeDayStartedAt,
+            let finishedAt = activeDayEnd(for: startedAt, calendar: calendar),
+            now >= finishedAt
+        else {
+            return 0
+        }
+
+        return finishDay(
+            at: finishedAt,
+            additionalOccupiedIntervals: additionalOccupiedIntervals
+        )
     }
 
     func totalFocusedSeconds(on date: Date, calendar: Calendar = .current) -> Int {
@@ -155,10 +187,15 @@ final class HistoryStore: ObservableObject {
         from startedAt: Date,
         to finishedAt: Date,
         slotLengthSeconds: Int,
-        idProvider: (Date, Date) -> UUID = { _, _ in UUID() }
+        idProvider: (Date, Date) -> UUID = { _, _ in UUID() },
+        additionalOccupiedIntervals: [DateInterval] = []
     ) -> [FocusSession] {
         let slotLength = TimeInterval(max(1, slotLengthSeconds))
-        let occupied = mergedOccupiedIntervals(from: startedAt, to: finishedAt)
+        let occupied = mergedOccupiedIntervals(
+            from: startedAt,
+            to: finishedAt,
+            additionalOccupiedIntervals: additionalOccupiedIntervals
+        )
         var generated: [FocusSession] = []
         var cursor = startedAt
 
@@ -216,9 +253,10 @@ final class HistoryStore: ObservableObject {
 
     private func mergedOccupiedIntervals(
         from startedAt: Date,
-        to finishedAt: Date
+        to finishedAt: Date,
+        additionalOccupiedIntervals: [DateInterval] = []
     ) -> [(start: Date, end: Date)] {
-        let intervals = sessions.compactMap { session -> (start: Date, end: Date)? in
+        let sessionIntervals = sessions.compactMap { session -> (start: Date, end: Date)? in
             let start = maxDate(session.startedAt, startedAt)
             let end = minDate(session.endedAt, finishedAt)
             guard end > start else {
@@ -226,7 +264,18 @@ final class HistoryStore: ObservableObject {
             }
             return (start, end)
         }
-        .sorted { $0.start < $1.start }
+
+        let reservedIntervals = additionalOccupiedIntervals.compactMap { interval -> (start: Date, end: Date)? in
+            let start = maxDate(interval.start, startedAt)
+            let end = minDate(interval.end, finishedAt)
+            guard end > start else {
+                return nil
+            }
+            return (start, end)
+        }
+
+        let intervals = (sessionIntervals + reservedIntervals)
+            .sorted { $0.start < $1.start }
 
         return intervals.reduce(into: []) { merged, interval in
             guard let last = merged.last else {
@@ -321,6 +370,10 @@ final class HistoryStore: ObservableObject {
 
     private func maxDate(_ lhs: Date, _ rhs: Date) -> Date {
         lhs > rhs ? lhs : rhs
+    }
+
+    private func activeDayEnd(for startedAt: Date, calendar: Calendar) -> Date? {
+        calendar.dateInterval(of: .day, for: startedAt)?.end
     }
 
     private struct DayState: Codable {

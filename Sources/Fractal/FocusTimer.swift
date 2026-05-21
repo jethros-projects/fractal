@@ -85,6 +85,14 @@ final class FocusTimer: ObservableObject {
         topic.trimmedNonEmpty ?? "No topic set"
     }
 
+    func currentBlockInterval(until date: Date = Date()) -> DateInterval? {
+        guard canTerminateCurrentBlock, let blockStartedAt, date > blockStartedAt else {
+            return nil
+        }
+
+        return DateInterval(start: blockStartedAt, end: date)
+    }
+
     func startOrResume() {
         switch state {
         case .idle, .completed:

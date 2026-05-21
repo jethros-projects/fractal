@@ -12,6 +12,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private var completionPanelController: CompletionPanelController?
+    private var dayRolloverTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
 
     public override init() {
@@ -23,6 +24,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupPopover()
         bindUpdates()
+        finishExpiredDayIfNeeded()
 
         focusTimer.onBlockCompleted = { [weak self] session in
             self?.showCompletionPrompt(for: session)
@@ -32,6 +34,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        dayRolloverTimer?.invalidate()
         focusTimer.pause()
     }
 
@@ -47,13 +50,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = NSSize(width: 420, height: 590)
+        popover.contentSize = FractalPopoverView.initialContentSize
         popover.contentViewController = NSHostingController(
             rootView: FractalPopoverView(
                 timer: focusTimer,
                 settings: settings,
                 historyStore: historyStore,
-                onQuit: { NSApp.terminate(nil) }
+                onQuit: { NSApp.terminate(nil) },
+                onContentSizeChange: { [weak popover] size in
+                    popover?.contentSize = size
+                }
             )
         )
         self.popover = popover
@@ -71,6 +77,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             .store(in: &cancellables)
+
+        historyStore.$activeDayStartedAt
+            .sink { [weak self] startedAt in
+                Task { @MainActor in
+                    self?.scheduleDayRollover(for: startedAt)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     @objc private func togglePopover(_ sender: Any?) {
@@ -81,10 +95,42 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            finishExpiredDayIfNeeded()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    private func finishExpiredDayIfNeeded() {
+        let activeBlockInterval = focusTimer.currentBlockInterval(until: Date()).map { [$0] } ?? []
+        historyStore.finishExpiredActiveDay(additionalOccupiedIntervals: activeBlockInterval)
+        scheduleDayRollover(for: historyStore.activeDayStartedAt)
+    }
+
+    private func scheduleDayRollover(for startedAt: Date?) {
+        dayRolloverTimer?.invalidate()
+        dayRolloverTimer = nil
+
+        guard
+            let startedAt,
+            let dayEnd = Calendar.current.dateInterval(of: .day, for: startedAt)?.end
+        else {
+            return
+        }
+
+        guard Date() < dayEnd else {
+            finishExpiredDayIfNeeded()
+            return
+        }
+
+        let timer = Timer(fire: dayEnd, interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.finishExpiredDayIfNeeded()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        dayRolloverTimer = timer
     }
 
     private func updateStatusItem() {

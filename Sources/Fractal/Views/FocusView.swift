@@ -13,9 +13,7 @@ struct FocusView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 18)
-
+        VStack(spacing: 18) {
             timerDial
 
             VStack(spacing: 9) {
@@ -33,39 +31,24 @@ struct FocusView: View {
             }
 
             controlCluster
-
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 22)
-        .padding(.bottom, 22)
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private var dayControls: some View {
+    private var startDayControl: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                Button {
-                    historyStore.startDay()
-                } label: {
-                    Label("Start Day", systemImage: "sunrise.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FractalSecondaryButtonStyle())
-                .frame(maxWidth: .infinity)
-                .disabled(historyStore.activeDayStartedAt != nil)
-
-                Button {
-                    historyStore.finishDay()
-                } label: {
-                    Label("Finish Day", systemImage: "sunset.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FractalSecondaryButtonStyle())
-                .frame(maxWidth: .infinity)
-                .disabled(historyStore.activeDayStartedAt == nil || timer.state == .running || timer.state == .paused)
+            Button {
+                historyStore.startDay(slotLengthSeconds: settings.blockLengthSeconds)
+            } label: {
+                Label("Start Day", systemImage: "sunrise.fill")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(FractalPrimaryButtonStyle())
             .frame(maxWidth: .infinity)
 
-            Text(dayStatusText)
+            Text("No day in progress")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
@@ -76,13 +59,17 @@ struct FocusView: View {
 
     private var controlCluster: some View {
         VStack(spacing: 10) {
-            controls
+            if historyStore.activeDayStartedAt == nil {
+                startDayControl
+            } else {
+                controls
 
-            Rectangle()
-                .fill(.primary.opacity(0.12))
-                .frame(height: 1)
-
-            dayControls
+                Text(dayStatusText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity)
     }

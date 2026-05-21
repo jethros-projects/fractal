@@ -166,6 +166,29 @@ final class FocusTimerTests: XCTestCase {
         }
     }
 
+    func testCurrentBlockIntervalUsesRunningBlockStart() async {
+        await MainActor.run {
+            let start = Date(timeIntervalSince1970: 500_000)
+            let rig = makeRig(blockLengthMinutes: 15, now: start)
+
+            rig.timer.startOrResume()
+            rig.timeSource.advance(by: 20)
+
+            let interval = rig.timer.currentBlockInterval(until: rig.timeSource.now)
+
+            XCTAssertEqual(interval?.start, start)
+            XCTAssertEqual(interval?.end, start.addingTimeInterval(20))
+        }
+    }
+
+    func testCurrentBlockIntervalIsNilWhenIdle() async {
+        await MainActor.run {
+            let rig = makeRig()
+
+            XCTAssertNil(rig.timer.currentBlockInterval())
+        }
+    }
+
     func testStartNewBlockCanPrepareWithoutStarting() async {
         await MainActor.run {
             let rig = makeRig(blockLengthMinutes: 10)

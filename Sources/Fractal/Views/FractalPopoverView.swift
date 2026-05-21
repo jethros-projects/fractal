@@ -6,16 +6,35 @@ private enum PopoverSection: String, CaseIterable, Identifiable {
     case settings = "Settings"
 
     var id: String { rawValue }
+
+    var contentHeight: CGFloat {
+        switch self {
+        case .focus:
+            return FractalPopoverView.focusContentHeight
+        case .history, .settings:
+            return FractalPopoverView.standardContentHeight
+        }
+    }
 }
 
 struct FractalPopoverView: View {
+    static let contentWidth: CGFloat = 420
+    static let focusContentHeight: CGFloat = 520
+    static let standardContentHeight: CGFloat = 590
+    static let initialContentSize = CGSize(width: contentWidth, height: focusContentHeight)
+
     @ObservedObject var timer: FocusTimer
     @ObservedObject var settings: AppSettings
     @ObservedObject var historyStore: HistoryStore
 
     let onQuit: () -> Void
+    var onContentSizeChange: (CGSize) -> Void = { _ in }
 
     @State private var section: PopoverSection = .focus
+
+    private var contentSize: CGSize {
+        CGSize(width: Self.contentWidth, height: section.contentHeight)
+    }
 
     var body: some View {
         ZStack {
@@ -53,7 +72,13 @@ struct FractalPopoverView: View {
                 .animation(.easeOut(duration: 0.16), value: section)
             }
         }
-        .frame(width: 420, height: 590)
+        .frame(width: Self.contentWidth, height: section.contentHeight)
+        .onAppear {
+            onContentSizeChange(contentSize)
+        }
+        .onChange(of: section) { _ in
+            onContentSizeChange(contentSize)
+        }
     }
 
     private var header: some View {

@@ -44,6 +44,19 @@ final class HistoryStore: ObservableObject {
         sessions.sorted { $0.endedAt > $1.endedAt }
     }
 
+    func activeDayPreviewSessions(until date: Date = Date()) -> [FocusSession] {
+        guard let startedAt = activeDayStartedAt, date > startedAt else {
+            return []
+        }
+
+        return untrackedSessions(
+            from: startedAt,
+            to: date,
+            slotLengthSeconds: activeDaySlotLengthSeconds ?? Self.defaultDaySlotLengthSeconds,
+            idProvider: deterministicSlotID
+        )
+    }
+
     func append(_ session: FocusSession) {
         sessions.append(session)
         sessions.sort { $0.startedAt < $1.startedAt }
@@ -141,7 +154,8 @@ final class HistoryStore: ObservableObject {
     private func untrackedSessions(
         from startedAt: Date,
         to finishedAt: Date,
-        slotLengthSeconds: Int
+        slotLengthSeconds: Int,
+        idProvider: (Date, Date) -> UUID = { _, _ in UUID() }
     ) -> [FocusSession] {
         let slotLength = TimeInterval(max(1, slotLengthSeconds))
         let occupied = mergedOccupiedIntervals(from: startedAt, to: finishedAt)
@@ -158,6 +172,7 @@ final class HistoryStore: ObservableObject {
                 }
 
                 generated.append(FocusSession(
+                    id: idProvider(slotStart, slotEnd),
                     topic: nil,
                     startedAt: slotStart,
                     endedAt: slotEnd,
@@ -182,6 +197,21 @@ final class HistoryStore: ObservableObject {
         }
 
         return generated
+    }
+
+    private func deterministicSlotID(startedAt: Date, endedAt: Date) -> UUID {
+        let startMillis = UInt64(bitPattern: Int64((startedAt.timeIntervalSince1970 * 1_000).rounded()))
+        let endMillis = UInt64(bitPattern: Int64((endedAt.timeIntervalSince1970 * 1_000).rounded()))
+        let uuidString = String(
+            format: "%08llX-%04llX-%04llX-%04llX-%012llX",
+            startMillis & 0xFFFF_FFFF,
+            (startMillis >> 32) & 0xFFFF,
+            (startMillis >> 48) & 0xFFFF,
+            endMillis & 0xFFFF,
+            (endMillis >> 16) & 0xFFFF_FFFF_FFFF
+        )
+
+        return UUID(uuidString: uuidString) ?? UUID()
     }
 
     private func mergedOccupiedIntervals(

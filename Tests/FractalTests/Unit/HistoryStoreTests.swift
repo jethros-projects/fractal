@@ -196,6 +196,45 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
+    func testActiveDayPreviewShowsUntrackedSlotsWithoutPersistingThem() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let focusStart = date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
+            let focusEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
+            let previewEnd = date(year: 2026, month: 5, day: 19, hour: 10)
+
+            store.startDay(at: dayStart)
+            store.append(FocusSession(topic: "Focused", startedAt: focusStart, endedAt: focusEnd))
+
+            let preview = store.activeDayPreviewSessions(until: previewEnd)
+
+            XCTAssertEqual(store.sessions.count, 1)
+            XCTAssertEqual(preview.count, 3)
+            XCTAssertTrue(preview.allSatisfy(\.isUntracked))
+            XCTAssertEqual(preview.map(\.startedAt), [
+                dayStart,
+                focusEnd,
+                date(year: 2026, month: 5, day: 19, hour: 9, minute: 45)
+            ])
+        }
+    }
+
+    func testActiveDayPreviewSlotIDsAreStable() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let previewEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
+
+            store.startDay(at: dayStart)
+
+            XCTAssertEqual(
+                store.activeDayPreviewSessions(until: previewEnd).map(\.id),
+                store.activeDayPreviewSessions(until: previewEnd).map(\.id)
+            )
+        }
+    }
+
     func testFinishDayCreatesUntrackedSlotsAroundFocusedSessions() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())

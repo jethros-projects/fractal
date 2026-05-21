@@ -32,11 +32,9 @@ struct FocusView: View {
                     .monospacedDigit()
             }
 
-            controls
+            controlCluster
 
             Spacer(minLength: 0)
-
-            dayControls
         }
         .padding(.horizontal, 22)
         .padding(.bottom, 22)
@@ -72,6 +70,19 @@ struct FocusView: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
                 .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var controlCluster: some View {
+        VStack(spacing: 10) {
+            controls
+
+            Rectangle()
+                .fill(.primary.opacity(0.12))
+                .frame(height: 1)
+
+            dayControls
         }
         .frame(maxWidth: .infinity)
     }

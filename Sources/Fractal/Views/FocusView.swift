@@ -14,9 +14,7 @@ struct FocusView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Spacer(minLength: 12)
-
-            dayControls
+            Spacer(minLength: 18)
 
             timerDial
 
@@ -36,9 +34,12 @@ struct FocusView: View {
 
             controls
 
-            Spacer(minLength: 22)
+            Spacer(minLength: 0)
+
+            dayControls
         }
         .padding(.horizontal, 22)
+        .padding(.bottom, 22)
     }
 
     private var dayControls: some View {
@@ -51,6 +52,7 @@ struct FocusView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(FractalSecondaryButtonStyle())
+                .frame(maxWidth: .infinity)
                 .disabled(historyStore.activeDayStartedAt != nil)
 
                 Button {
@@ -60,8 +62,10 @@ struct FocusView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(FractalSecondaryButtonStyle())
+                .frame(maxWidth: .infinity)
                 .disabled(historyStore.activeDayStartedAt == nil || timer.state == .running || timer.state == .paused)
             }
+            .frame(maxWidth: .infinity)
 
             Text(dayStatusText)
                 .font(.system(size: 11, weight: .medium))
@@ -69,6 +73,7 @@ struct FocusView: View {
                 .monospacedDigit()
                 .lineLimit(1)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var timerDial: some View {
@@ -115,26 +120,33 @@ struct FocusView: View {
                 timer.startOrResume()
             } label: {
                 Label(startLabel, systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(FractalPrimaryButtonStyle())
+            .frame(maxWidth: .infinity)
             .disabled(timer.state == .running)
 
             Button {
                 timer.pause()
             } label: {
                 Label("Pause", systemImage: "pause.fill")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(FractalSecondaryButtonStyle())
+            .frame(maxWidth: .infinity)
             .disabled(timer.state != .running)
 
             Button {
                 timer.terminateCurrentBlock()
             } label: {
                 Label("Stop", systemImage: "stop.fill")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(FractalSecondaryButtonStyle())
+            .frame(maxWidth: .infinity)
             .disabled(!timer.canTerminateCurrentBlock)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var startLabel: String {

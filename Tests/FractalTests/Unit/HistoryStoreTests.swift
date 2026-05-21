@@ -143,6 +143,139 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
+    func testUntrackedSessionsAreExcludedFromFocusTotals() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let calendar = utcCalendar()
+            let targetDay = date(year: 2026, month: 5, day: 19, hour: 12)
+
+            store.append(FocusSession(
+                topic: "Writing",
+                durationSeconds: 900,
+                startedAt: date(year: 2026, month: 5, day: 19, hour: 9),
+                endedAt: date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
+            ))
+            store.append(FocusSession(
+                topic: nil,
+                durationSeconds: 900,
+                startedAt: date(year: 2026, month: 5, day: 19, hour: 9, minute: 15),
+                endedAt: date(year: 2026, month: 5, day: 19, hour: 9, minute: 30),
+                kind: .untracked
+            ))
+
+            XCTAssertEqual(store.totalFocusedSeconds(on: targetDay, calendar: calendar), 900)
+        }
+    }
+
+    func testStartDayDefaultsToFifteenMinuteSlots() async {
+        await MainActor.run {
+            let url = temporaryHistoryURL()
+            let startedAt = date(year: 2026, month: 5, day: 19, hour: 9)
+            let store = HistoryStore(fileURL: url)
+
+            store.startDay(at: startedAt)
+            let reloaded = HistoryStore(fileURL: url)
+
+            XCTAssertEqual(reloaded.activeDayStartedAt, startedAt)
+            XCTAssertEqual(reloaded.activeDaySlotLengthSeconds, 15 * 60)
+        }
+    }
+
+    func testFinishDayUsesSlotLengthCapturedAtStartDay() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let dayEnd = date(year: 2026, month: 5, day: 19, hour: 10)
+
+            store.startDay(at: dayStart, slotLengthSeconds: 20 * 60)
+
+            let generatedCount = store.finishDay(at: dayEnd, slotLengthSeconds: 45 * 60)
+
+            XCTAssertEqual(generatedCount, 3)
+            XCTAssertEqual(store.sessions.map(\.durationSeconds), [20 * 60, 20 * 60, 20 * 60])
+        }
+    }
+
+    func testFinishDayCreatesUntrackedSlotsAroundFocusedSessions() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let focusStart = date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
+            let focusEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
+            let dayEnd = date(year: 2026, month: 5, day: 19, hour: 10)
+
+            store.startDay(at: dayStart)
+            store.append(FocusSession(topic: "Focused", startedAt: focusStart, endedAt: focusEnd))
+
+            let generatedCount = store.finishDay(at: dayEnd, slotLengthSeconds: 15 * 60)
+
+            XCTAssertEqual(generatedCount, 3)
+            XCTAssertNil(store.activeDayStartedAt)
+            XCTAssertNil(store.activeDaySlotLengthSeconds)
+            XCTAssertEqual(store.sessions.filter(\.isUntracked).count, 3)
+            XCTAssertEqual(store.sessions.filter { $0.kind == .focused }.count, 1)
+            XCTAssertEqual(store.sessions.map(\.startedAt), [
+                dayStart,
+                focusStart,
+                focusEnd,
+                date(year: 2026, month: 5, day: 19, hour: 9, minute: 45)
+            ])
+        }
+    }
+
+    func testFinishDayDoesNotGenerateSlotsForAlreadyTrackedTime() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let existingUntrackedEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
+            let dayEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
+
+            store.startDay(at: dayStart)
+            store.append(FocusSession(
+                topic: nil,
+                startedAt: dayStart,
+                endedAt: existingUntrackedEnd,
+                kind: .untracked
+            ))
+
+            let generatedCount = store.finishDay(at: dayEnd, slotLengthSeconds: 15 * 60)
+
+            XCTAssertEqual(generatedCount, 1)
+            XCTAssertEqual(store.sessions.filter(\.isUntracked).count, 2)
+            XCTAssertEqual(store.sessions.last?.startedAt, existingUntrackedEnd)
+            XCTAssertEqual(store.sessions.last?.endedAt, dayEnd)
+        }
+    }
+
+    func testUpdatingUntrackedSlotWithTitleMakesItFocused() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let original = FocusSession(
+                topic: nil,
+                startedAt: date(year: 2026, month: 5, day: 19, hour: 9),
+                endedAt: date(year: 2026, month: 5, day: 19, hour: 9, minute: 15),
+                kind: .untracked
+            )
+            let updatedStart = date(year: 2026, month: 5, day: 19, hour: 9, minute: 5)
+            let updatedEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 25)
+
+            store.append(original)
+            store.updateSession(
+                id: original.id,
+                topic: "Email triage",
+                startedAt: updatedStart,
+                endedAt: updatedEnd,
+                kind: .focused
+            )
+
+            XCTAssertEqual(store.sessions.first?.kind, .focused)
+            XCTAssertEqual(store.sessions.first?.topic, "Email triage")
+            XCTAssertEqual(store.sessions.first?.startedAt, updatedStart)
+            XCTAssertEqual(store.sessions.first?.endedAt, updatedEnd)
+            XCTAssertEqual(store.sessions.first?.durationSeconds, 20 * 60)
+        }
+    }
+
     func testAppendingAfterMalformedLoadOverwritesWithValidHistory() async {
         await MainActor.run {
             let url = temporaryHistoryURL()

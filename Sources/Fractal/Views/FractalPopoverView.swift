@@ -34,7 +34,11 @@ struct FractalPopoverView: View {
                 Group {
                     switch section {
                     case .focus:
-                        FocusView(timer: timer, settings: settings)
+                        FocusView(
+                            timer: timer,
+                            settings: settings,
+                            historyStore: historyStore
+                        )
                     case .history:
                         HistoryView(historyStore: historyStore)
                     case .settings:

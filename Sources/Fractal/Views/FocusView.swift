@@ -3,6 +3,7 @@ import SwiftUI
 struct FocusView: View {
     @ObservedObject var timer: FocusTimer
     @ObservedObject var settings: AppSettings
+    @ObservedObject var historyStore: HistoryStore
 
     private var topicBinding: Binding<String> {
         Binding(
@@ -12,8 +13,10 @@ struct FocusView: View {
     }
 
     var body: some View {
-        VStack(spacing: 26) {
-            Spacer(minLength: 18)
+        VStack(spacing: 20) {
+            Spacer(minLength: 12)
+
+            dayControls
 
             timerDial
 
@@ -36,6 +39,36 @@ struct FocusView: View {
             Spacer(minLength: 22)
         }
         .padding(.horizontal, 22)
+    }
+
+    private var dayControls: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Button {
+                    historyStore.startDay()
+                } label: {
+                    Label("Start Day", systemImage: "sunrise.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(FractalSecondaryButtonStyle())
+                .disabled(historyStore.activeDayStartedAt != nil)
+
+                Button {
+                    historyStore.finishDay()
+                } label: {
+                    Label("Finish Day", systemImage: "sunset.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(FractalSecondaryButtonStyle())
+                .disabled(historyStore.activeDayStartedAt == nil || timer.state == .running || timer.state == .paused)
+            }
+
+            Text(dayStatusText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(1)
+        }
     }
 
     private var timerDial: some View {
@@ -95,16 +128,33 @@ struct FocusView: View {
             .disabled(timer.state != .running)
 
             Button {
-                timer.reset()
+                timer.terminateCurrentBlock()
             } label: {
-                Label("Reset", systemImage: "arrow.counterclockwise")
+                Label("Stop", systemImage: "stop.fill")
             }
             .buttonStyle(FractalSecondaryButtonStyle())
+            .disabled(!timer.canTerminateCurrentBlock)
         }
     }
 
     private var startLabel: String {
         timer.state == .paused ? "Resume" : "Start"
+    }
+
+    private var dayStatusText: String {
+        guard let startedAt = historyStore.activeDayStartedAt else {
+            return "No day in progress"
+        }
+
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+
+        if let slotLength = historyStore.activeDaySlotLengthSeconds {
+            return "Day started at \(formatter.string(from: startedAt)) - \(FractalCopy.duration(slotLength)) slots"
+        }
+
+        return "Day started at \(formatter.string(from: startedAt))"
     }
 
     private var statusText: String {

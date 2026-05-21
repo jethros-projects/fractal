@@ -3,6 +3,8 @@ import SwiftUI
 struct HistoryView: View {
     @ObservedObject var historyStore: HistoryStore
 
+    @State private var editingSession: FocusSession?
+
     private var todayTotal: String {
         FractalCopy.compactTime(historyStore.totalFocusedSeconds(on: Date()))
     }
@@ -24,9 +26,15 @@ struct HistoryView: View {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(historyStore.sessionsNewestFirst) { session in
-                            SessionRow(session: session)
+                    LazyVStack(spacing: 10) {
+                        ForEach(daySections) { section in
+                            DaySeparator(date: section.date)
+
+                            ForEach(section.sessions) { session in
+                                SessionRow(session: session) {
+                                    editingSession = session
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 18)
@@ -34,6 +42,28 @@ struct HistoryView: View {
                 }
             }
         }
+        .sheet(item: $editingSession) { session in
+            SessionEditorView(
+                session: session,
+                historyStore: historyStore
+            )
+        }
+    }
+
+    private var daySections: [HistoryDaySection] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: historyStore.sessions) { session in
+            calendar.startOfDay(for: session.startedAt)
+        }
+
+        return grouped
+            .map { date, sessions in
+                HistoryDaySection(
+                    date: date,
+                    sessions: sessions.sorted { $0.endedAt > $1.endedAt }
+                )
+            }
+            .sorted { $0.date > $1.date }
     }
 
     private var emptyState: some View {
@@ -55,8 +85,46 @@ struct HistoryView: View {
     }
 }
 
+private struct HistoryDaySection: Identifiable {
+    let date: Date
+    let sessions: [FocusSession]
+
+    var id: Date { date }
+}
+
+private struct DaySeparator: View {
+    let date: Date
+
+    private var dateText: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(.primary.opacity(0.09))
+                .frame(height: 1)
+
+            Text(dateText)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Rectangle()
+                .fill(.primary.opacity(0.09))
+                .frame(height: 1)
+        }
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+    }
+}
+
 private struct SessionRow: View {
     let session: FocusSession
+    let onEdit: () -> Void
 
     private var timeRange: String {
         let formatter = DateFormatter()
@@ -65,27 +133,39 @@ private struct SessionRow: View {
         return "\(formatter.string(from: session.startedAt)) - \(formatter.string(from: session.endedAt))"
     }
 
-    private var dateText: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: session.startedAt)
+    private var sessionSubtitle: String {
+        timeRange
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
+            Image(systemName: session.isUntracked ? "questionmark.circle" : "checkmark.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(session.isUntracked ? .secondary : Color.accentColor)
+                .frame(width: 18)
+
             VStack(alignment: .leading, spacing: 5) {
                 Text(session.topicDisplayName)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
 
-                Text("\(dateText) - \(timeRange)")
+                Text(sessionSubtitle)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             Spacer(minLength: 8)
+
+            Button {
+                onEdit()
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Edit \(session.topicDisplayName)")
 
             Text(FractalCopy.duration(session.durationSeconds))
                 .font(.system(size: 12, weight: .semibold))
@@ -100,11 +180,99 @@ private struct SessionRow: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.primary.opacity(0.04))
+                .fill(session.isUntracked ? .primary.opacity(0.03) : .primary.opacity(0.04))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(.primary.opacity(0.055), lineWidth: 1)
+                .stroke(session.isUntracked ? .primary.opacity(0.045) : .primary.opacity(0.055), lineWidth: 1)
         )
+    }
+}
+
+private struct SessionEditorView: View {
+    let session: FocusSession
+
+    @ObservedObject var historyStore: HistoryStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var title: String
+    @State private var startedAt: Date
+    @State private var endedAt: Date
+
+    init(session: FocusSession, historyStore: HistoryStore) {
+        self.session = session
+        self.historyStore = historyStore
+        _title = State(initialValue: session.topic ?? "")
+        _startedAt = State(initialValue: session.startedAt)
+        _endedAt = State(initialValue: session.endedAt)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(session.isUntracked ? "Assign Slot" : "Edit Slot")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+
+                Text(session.isUntracked ? "Untracked time" : "Focused time")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Title")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                TextField("Focus title", text: $title)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                DatePicker(
+                    "Start",
+                    selection: $startedAt,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+
+                DatePicker(
+                    "End",
+                    selection: $endedAt,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+            }
+            .datePickerStyle(.field)
+
+            HStack(spacing: 10) {
+                Spacer()
+
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(FractalSecondaryButtonStyle())
+
+                Button {
+                    save()
+                } label: {
+                    Label("Save Slot", systemImage: "checkmark")
+                }
+                .buttonStyle(FractalPrimaryButtonStyle())
+                .disabled(endedAt <= startedAt)
+            }
+        }
+        .padding(22)
+        .frame(width: 390)
+    }
+
+    private func save() {
+        let trimmedTitle = title.trimmedNonEmpty
+        let kind: FocusSessionKind = trimmedTitle == nil ? session.kind : .focused
+        historyStore.updateSession(
+            id: session.id,
+            topic: trimmedTitle,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            kind: kind
+        )
+        dismiss()
     }
 }

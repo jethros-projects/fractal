@@ -106,7 +106,7 @@ final class AppSettingsTests: XCTestCase {
             let (defaults, _) = isolatedDefaults()
             let settings = AppSettings(defaults: defaults)
 
-            settings.blockLengthMinutes = 25
+            settings.blockLengthMinutes = 30
 
             XCTAssertTrue(settings.isUsingPreset)
         }

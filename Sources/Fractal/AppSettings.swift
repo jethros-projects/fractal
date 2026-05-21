@@ -5,7 +5,7 @@ import Foundation
 
 @MainActor
 final class AppSettings: ObservableObject {
-    static let presetMinutes = [5, 10, 15, 20, 25, 30, 45, 60]
+    nonisolated static let presetMinutes = [5, 15, 30, 60]
 
     @Published var blockLengthMinutes: Int {
         didSet {

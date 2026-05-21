@@ -7,9 +7,10 @@ struct FractalSettingsView: View {
 
     @State private var customMinutesText = ""
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 72), spacing: 8)
-    ]
+    private let columns = Array(
+        repeating: GridItem(.flexible(), spacing: 8),
+        count: AppSettings.presetMinutes.count
+    )
 
     var body: some View {
         ScrollView {
@@ -18,6 +19,7 @@ struct FractalSettingsView: View {
                 notificationSection
                 appSection
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
         }
         .onAppear {
@@ -45,6 +47,8 @@ struct FractalSettingsView: View {
             }
 
             HStack(spacing: 10) {
+                Spacer(minLength: 0)
+
                 Text("Custom")
                     .font(.system(size: 13, weight: .semibold))
 
@@ -63,10 +67,9 @@ struct FractalSettingsView: View {
                     set: { settings.blockLengthMinutes = $0 }
                 ), in: 1...240)
                 .labelsHidden()
-
-                Spacer()
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(sectionBackground)
     }
@@ -75,11 +78,12 @@ struct FractalSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader("Notifications")
 
-            Toggle("Sound notifications", isOn: $settings.soundEnabled)
-            Toggle("Auto-start after Continue", isOn: $settings.autoStartAfterContinue)
-            Toggle("Show seconds in menu bar", isOn: $settings.showSecondsInMenuBar)
+            notificationToggle("Sound notifications", isOn: $settings.soundEnabled)
+            notificationToggle("Auto-start after Continue", isOn: $settings.autoStartAfterContinue)
+            notificationToggle("Show seconds in menu bar", isOn: $settings.showSecondsInMenuBar)
         }
         .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(sectionBackground)
     }
@@ -95,6 +99,7 @@ struct FractalSettingsView: View {
             }
             .buttonStyle(FractalSecondaryButtonStyle())
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(sectionBackground)
     }
@@ -112,6 +117,18 @@ struct FractalSettingsView: View {
         Text(text)
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(.secondary)
+    }
+
+    private func notificationToggle(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+
+            Spacer(minLength: 16)
+
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+        }
     }
 
     private func commitCustomMinutes() {

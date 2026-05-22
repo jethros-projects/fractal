@@ -101,7 +101,7 @@ struct HistoryView: View {
                 .foregroundStyle(.secondary)
             Text("No history yet")
                 .font(.system(size: 14, weight: .semibold))
-            Text("Focused blocks and day slots will appear here as they are logged.")
+            Text("Focused blocks and flexible free time will appear here as they are logged.")
                 .font(.system(size: 12))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -183,7 +183,15 @@ private struct SessionRow: View {
     }
 
     private var titlePlaceholder: String {
-        isPreview || session.isUntracked ? "Empty slot" : "No topic set"
+        isPreview || session.isUntracked ? "Free time" : "No topic set"
+    }
+
+    private var durationText: String {
+        if session.durationSeconds >= 60 * 60 {
+            return FractalCopy.compactTime(session.durationSeconds)
+        }
+
+        return FractalCopy.duration(session.durationSeconds)
     }
 
     var body: some View {
@@ -205,7 +213,7 @@ private struct SessionRow: View {
 
             Spacer(minLength: 8)
 
-            Text(FractalCopy.duration(session.durationSeconds))
+            Text(durationText)
                 .font(.system(size: 12, weight: .semibold))
                 .monospacedDigit()
                 .padding(.horizontal, 9)

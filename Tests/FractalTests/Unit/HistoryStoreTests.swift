@@ -167,7 +167,7 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
-    func testStartDayDefaultsToFifteenMinuteSlots() async {
+    func testStartDayPersistsDefaultBlockLengthForCompatibility() async {
         await MainActor.run {
             let url = temporaryHistoryURL()
             let startedAt = date(year: 2026, month: 5, day: 19, hour: 9)
@@ -181,25 +181,52 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
-    func testFinishDayUsesSlotLengthCapturedAtStartDay() async {
+    func testFinishDayCreatesOneFlexibleGapInsteadOfFixedSlots() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
             let dayEnd = date(year: 2026, month: 5, day: 19, hour: 10)
+            let midnight = date(year: 2026, month: 5, day: 19, hour: 0)
 
             store.startDay(at: dayStart, slotLengthSeconds: 20 * 60)
 
-            let generatedCount = store.finishDay(at: dayEnd, slotLengthSeconds: 45 * 60)
+            let generatedCount = store.finishDay(
+                at: dayEnd,
+                slotLengthSeconds: 45 * 60,
+                calendar: utcCalendar()
+            )
 
-            XCTAssertEqual(generatedCount, 3)
-            XCTAssertEqual(store.sessions.map(\.durationSeconds), [20 * 60, 20 * 60, 20 * 60])
+            XCTAssertEqual(generatedCount, 1)
+            XCTAssertEqual(store.sessions.first?.startedAt, midnight)
+            XCTAssertEqual(store.sessions.first?.endedAt, dayEnd)
+            XCTAssertEqual(store.sessions.map(\.durationSeconds), [10 * 60 * 60])
         }
     }
 
-    func testActiveDayPreviewShowsUntrackedSlotsWithoutPersistingThem() async {
+    func testFinishDayAtStartStillCapturesEarlierFreeTime() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let midnight = date(year: 2026, month: 5, day: 19, hour: 0)
+
+            store.startDay(at: dayStart)
+
+            let generatedCount = store.finishDay(
+                at: dayStart,
+                calendar: utcCalendar()
+            )
+
+            XCTAssertEqual(generatedCount, 1)
+            XCTAssertEqual(store.sessions.first?.startedAt, midnight)
+            XCTAssertEqual(store.sessions.first?.endedAt, dayStart)
+        }
+    }
+
+    func testActiveDayPreviewShowsFlexibleGapsWithoutPersistingThem() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let midnight = date(year: 2026, month: 5, day: 19, hour: 0)
             let focusStart = date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
             let focusEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
             let previewEnd = date(year: 2026, month: 5, day: 19, hour: 10)
@@ -207,20 +234,23 @@ final class HistoryStoreTests: XCTestCase {
             store.startDay(at: dayStart)
             store.append(FocusSession(topic: "Focused", startedAt: focusStart, endedAt: focusEnd))
 
-            let preview = store.activeDayPreviewSessions(until: previewEnd)
+            let preview = store.activeDayPreviewSessions(until: previewEnd, calendar: utcCalendar())
 
             XCTAssertEqual(store.sessions.count, 1)
-            XCTAssertEqual(preview.count, 3)
+            XCTAssertEqual(preview.count, 2)
             XCTAssertTrue(preview.allSatisfy(\.isUntracked))
             XCTAssertEqual(preview.map(\.startedAt), [
-                dayStart,
-                focusEnd,
-                date(year: 2026, month: 5, day: 19, hour: 9, minute: 45)
+                midnight,
+                focusEnd
+            ])
+            XCTAssertEqual(preview.map(\.endedAt), [
+                focusStart,
+                previewEnd
             ])
         }
     }
 
-    func testActiveDayPreviewSlotIDsAreStable() async {
+    func testActiveDayPreviewGapIDsAreStable() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
@@ -228,17 +258,19 @@ final class HistoryStoreTests: XCTestCase {
 
             store.startDay(at: dayStart)
 
+            let calendar = utcCalendar()
             XCTAssertEqual(
-                store.activeDayPreviewSessions(until: previewEnd).map(\.id),
-                store.activeDayPreviewSessions(until: previewEnd).map(\.id)
+                store.activeDayPreviewSessions(until: previewEnd, calendar: calendar).map(\.id),
+                store.activeDayPreviewSessions(until: previewEnd, calendar: calendar).map(\.id)
             )
         }
     }
 
-    func testFinishDayCreatesUntrackedSlotsAroundFocusedSessions() async {
+    func testFinishDayCreatesFlexibleGapsAroundFocusedSessions() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let midnight = date(year: 2026, month: 5, day: 19, hour: 0)
             let focusStart = date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
             let focusEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
             let dayEnd = date(year: 2026, month: 5, day: 19, hour: 10)
@@ -246,38 +278,51 @@ final class HistoryStoreTests: XCTestCase {
             store.startDay(at: dayStart)
             store.append(FocusSession(topic: "Focused", startedAt: focusStart, endedAt: focusEnd))
 
-            let generatedCount = store.finishDay(at: dayEnd, slotLengthSeconds: 15 * 60)
+            let generatedCount = store.finishDay(
+                at: dayEnd,
+                slotLengthSeconds: 15 * 60,
+                calendar: utcCalendar()
+            )
 
-            XCTAssertEqual(generatedCount, 3)
+            XCTAssertEqual(generatedCount, 2)
             XCTAssertNil(store.activeDayStartedAt)
             XCTAssertNil(store.activeDaySlotLengthSeconds)
-            XCTAssertEqual(store.sessions.filter(\.isUntracked).count, 3)
+            XCTAssertEqual(store.sessions.filter(\.isUntracked).count, 2)
             XCTAssertEqual(store.sessions.filter { $0.kind == .focused }.count, 1)
             XCTAssertEqual(store.sessions.map(\.startedAt), [
-                dayStart,
+                midnight,
+                focusStart,
+                focusEnd
+            ])
+            XCTAssertEqual(store.sessions.map(\.endedAt), [
                 focusStart,
                 focusEnd,
-                date(year: 2026, month: 5, day: 19, hour: 9, minute: 45)
+                dayEnd
             ])
         }
     }
 
-    func testFinishDayDoesNotGenerateSlotsForAlreadyTrackedTime() async {
+    func testFinishDayDoesNotGenerateGapsForAlreadyTrackedTime() async {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 9)
+            let midnight = date(year: 2026, month: 5, day: 19, hour: 0)
             let existingUntrackedEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 15)
             let dayEnd = date(year: 2026, month: 5, day: 19, hour: 9, minute: 30)
 
             store.startDay(at: dayStart)
             store.append(FocusSession(
                 topic: nil,
-                startedAt: dayStart,
+                startedAt: midnight,
                 endedAt: existingUntrackedEnd,
                 kind: .untracked
             ))
 
-            let generatedCount = store.finishDay(at: dayEnd, slotLengthSeconds: 15 * 60)
+            let generatedCount = store.finishDay(
+                at: dayEnd,
+                slotLengthSeconds: 15 * 60,
+                calendar: utcCalendar()
+            )
 
             XCTAssertEqual(generatedCount, 1)
             XCTAssertEqual(store.sessions.filter(\.isUntracked).count, 2)
@@ -290,6 +335,7 @@ final class HistoryStoreTests: XCTestCase {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let calendar = utcCalendar()
+            let calendarDayStart = date(year: 2026, month: 5, day: 19, hour: 0)
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 30)
             let midnight = date(year: 2026, month: 5, day: 20, hour: 0)
             let afterMidnight = date(year: 2026, month: 5, day: 20, hour: 0, minute: 5)
@@ -298,9 +344,10 @@ final class HistoryStoreTests: XCTestCase {
 
             let generatedCount = store.finishExpiredActiveDay(now: afterMidnight, calendar: calendar)
 
-            XCTAssertEqual(generatedCount, 2)
+            XCTAssertEqual(generatedCount, 1)
             XCTAssertNil(store.activeDayStartedAt)
             XCTAssertNil(store.activeDaySlotLengthSeconds)
+            XCTAssertEqual(store.sessions.last?.startedAt, calendarDayStart)
             XCTAssertEqual(store.sessions.last?.endedAt, midnight)
         }
     }
@@ -326,6 +373,7 @@ final class HistoryStoreTests: XCTestCase {
         await MainActor.run {
             let store = HistoryStore(fileURL: temporaryHistoryURL())
             let calendar = utcCalendar()
+            let calendarDayStart = date(year: 2026, month: 5, day: 19, hour: 0)
             let dayStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 30)
             let activeBlockStart = date(year: 2026, month: 5, day: 19, hour: 23, minute: 45)
             let midnight = date(year: 2026, month: 5, day: 20, hour: 0)
@@ -340,7 +388,7 @@ final class HistoryStoreTests: XCTestCase {
 
             XCTAssertEqual(generatedCount, 1)
             XCTAssertEqual(store.sessions.count, 1)
-            XCTAssertEqual(store.sessions.first?.startedAt, dayStart)
+            XCTAssertEqual(store.sessions.first?.startedAt, calendarDayStart)
             XCTAssertEqual(store.sessions.first?.endedAt, activeBlockStart)
         }
     }

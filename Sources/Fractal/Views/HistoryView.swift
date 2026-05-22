@@ -67,7 +67,7 @@ struct HistoryView: View {
             .map { date, entries in
                 let sortedEntries = entries.sorted { $0.session.endedAt > $1.session.endedAt }
 
-                HistoryDaySection(
+                return HistoryDaySection(
                     date: date,
                     entries: sortedEntries
                 )

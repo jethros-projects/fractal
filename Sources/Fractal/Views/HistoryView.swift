@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryView: View {
     @ObservedObject var historyStore: HistoryStore
+    let defaultLogDurationSeconds: Int
 
     private var todayTotal: String {
         FractalCopy.compactTime(historyStore.totalFocusedSeconds(on: Date()))
@@ -24,16 +25,22 @@ struct HistoryView: View {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 8) {
                         ForEach(daySections) { section in
-                            DaySeparator(date: section.date)
+                            HistoryDayHeader(section: section)
 
                             ForEach(section.entries) { entry in
-                                SessionRow(
+                                HistorySessionRow(
                                     session: entry.session,
-                                    isPreview: entry.isPreview
-                                ) { title in
-                                    saveTitle(title, for: entry)
+                                    isPreview: entry.isPreview,
+                                    defaultLogDurationSeconds: defaultLogDurationSeconds
+                                ) { title, startedAt, endedAt in
+                                    saveSession(
+                                        title: title,
+                                        startedAt: startedAt,
+                                        endedAt: endedAt,
+                                        for: entry
+                                    )
                                 }
                             }
                         }
@@ -58,15 +65,22 @@ struct HistoryView: View {
 
         return grouped
             .map { date, entries in
+                let sortedEntries = entries.sorted { $0.session.endedAt > $1.session.endedAt }
+
                 HistoryDaySection(
                     date: date,
-                    entries: entries.sorted { $0.session.endedAt > $1.session.endedAt }
+                    entries: sortedEntries
                 )
             }
             .sorted { $0.date > $1.date }
     }
 
-    private func saveTitle(_ title: String, for entry: HistoryListEntry) {
+    private func saveSession(
+        title: String,
+        startedAt: Date,
+        endedAt: Date,
+        for entry: HistoryListEntry
+    ) {
         let trimmedTitle = title.trimmedNonEmpty
 
         if entry.isPreview {
@@ -74,21 +88,33 @@ struct HistoryView: View {
                 return
             }
 
-            historyStore.append(FocusSession(
-                id: entry.session.id,
+            historyStore.logFocusedSession(
                 topic: trimmedTitle,
-                startedAt: entry.session.startedAt,
-                endedAt: entry.session.endedAt,
-                kind: .focused
-            ))
+                startedAt: startedAt,
+                endedAt: endedAt
+            )
+            return
+        }
+
+        if entry.session.isUntracked {
+            guard let trimmedTitle else {
+                return
+            }
+
+            historyStore.logFocusedSession(
+                topic: trimmedTitle,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                replacingUntrackedSessionID: entry.session.id
+            )
             return
         }
 
         historyStore.updateSession(
             id: entry.session.id,
             topic: trimmedTitle,
-            startedAt: entry.session.startedAt,
-            endedAt: entry.session.endedAt,
+            startedAt: startedAt,
+            endedAt: endedAt,
             kind: trimmedTitle == nil ? entry.session.kind : .focused
         )
     }
@@ -101,7 +127,7 @@ struct HistoryView: View {
                 .foregroundStyle(.secondary)
             Text("No history yet")
                 .font(.system(size: 14, weight: .semibold))
-            Text("Focused blocks and flexible free time will appear here as they are logged.")
+            Text("Start a day or complete a focus block to build your timeline.")
                 .font(.system(size: 12))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -112,151 +138,30 @@ struct HistoryView: View {
     }
 }
 
-private struct HistoryDaySection: Identifiable {
+struct HistoryDaySection: Identifiable {
     let date: Date
     let entries: [HistoryListEntry]
 
     var id: Date { date }
+
+    var focusedSeconds: Int {
+        entries
+            .filter { $0.session.kind == .focused }
+            .map(\.session.durationSeconds)
+            .reduce(0, +)
+    }
+
+    var freeSeconds: Int {
+        entries
+            .filter { $0.session.isUntracked }
+            .map(\.session.durationSeconds)
+            .reduce(0, +)
+    }
 }
 
-private struct HistoryListEntry: Identifiable {
+struct HistoryListEntry: Identifiable {
     let session: FocusSession
     let isPreview: Bool
 
     var id: UUID { session.id }
-}
-
-private struct DaySeparator: View {
-    let date: Date
-
-    private var dateText: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Rectangle()
-                .fill(.primary.opacity(0.09))
-                .frame(height: 1)
-
-            Text(dateText)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Rectangle()
-                .fill(.primary.opacity(0.09))
-                .frame(height: 1)
-        }
-        .padding(.top, 6)
-        .padding(.bottom, 2)
-    }
-}
-
-private struct SessionRow: View {
-    let session: FocusSession
-    let isPreview: Bool
-    let onTitleCommit: (String) -> Void
-
-    @State private var draftTitle: String
-    @FocusState private var isTitleFocused: Bool
-
-    init(
-        session: FocusSession,
-        isPreview: Bool,
-        onTitleCommit: @escaping (String) -> Void
-    ) {
-        self.session = session
-        self.isPreview = isPreview
-        self.onTitleCommit = onTitleCommit
-        _draftTitle = State(initialValue: session.topic ?? "")
-    }
-
-    private var timeRange: String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return "\(formatter.string(from: session.startedAt)) - \(formatter.string(from: session.endedAt))"
-    }
-
-    private var titlePlaceholder: String {
-        isPreview || session.isUntracked ? "Free time" : "No topic set"
-    }
-
-    private var durationText: String {
-        if session.durationSeconds >= 60 * 60 {
-            return FractalCopy.compactTime(session.durationSeconds)
-        }
-
-        return FractalCopy.duration(session.durationSeconds)
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                TextField(titlePlaceholder, text: $draftTitle)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .focused($isTitleFocused)
-                    .onSubmit(commitTitle)
-                    .accessibilityLabel("Session title")
-
-                Text(timeRange)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
-
-            Text(durationText)
-                .font(.system(size: 12, weight: .semibold))
-                .monospacedDigit()
-                .padding(.horizontal, 9)
-                .frame(height: 26)
-                .background(
-                    Capsule()
-                        .fill(.primary.opacity(0.055))
-                )
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(session.isUntracked ? 0.03 : 0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.primary.opacity(session.isUntracked ? 0.045 : 0.055), lineWidth: 1)
-        )
-        .onChange(of: isTitleFocused) { focused in
-            if !focused {
-                commitTitle()
-            }
-        }
-        .onChange(of: session.topic) { topic in
-            guard !isTitleFocused else {
-                return
-            }
-
-            draftTitle = topic ?? ""
-        }
-    }
-
-    private func commitTitle() {
-        let normalizedTitle = draftTitle.trimmedNonEmpty ?? ""
-
-        if draftTitle != normalizedTitle {
-            draftTitle = normalizedTitle
-        }
-
-        guard normalizedTitle != (session.topic ?? "") else {
-            return
-        }
-
-        onTitleCommit(normalizedTitle)
-    }
 }

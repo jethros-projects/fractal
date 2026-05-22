@@ -52,16 +52,21 @@ final class HistoryStore: ObservableObject {
             return []
         }
 
-        let finishedAt = minDate(date, activeDayEnd(for: startedAt, calendar: calendar) ?? date)
-        guard finishedAt > startedAt else {
+        guard date >= startedAt else {
+            return []
+        }
+
+        let dayInterval = activeDayInterval(for: startedAt, calendar: calendar)
+        let previewStart = dayInterval?.start ?? startedAt
+        let previewEnd = minDate(date, dayInterval?.end ?? date)
+        guard previewEnd > previewStart else {
             return []
         }
 
         return untrackedSessions(
-            from: startedAt,
-            to: finishedAt,
-            slotLengthSeconds: activeDaySlotLengthSeconds ?? Self.defaultDaySlotLengthSeconds,
-            idProvider: deterministicSlotID
+            from: previewStart,
+            to: previewEnd,
+            idProvider: deterministicGapID
         )
     }
 
@@ -113,25 +118,32 @@ final class HistoryStore: ObservableObject {
     func finishDay(
         at finishedAt: Date = Date(),
         slotLengthSeconds: Int? = nil,
+        calendar: Calendar = .current,
         additionalOccupiedIntervals: [DateInterval] = []
     ) -> Int {
         guard let startedAt = activeDayStartedAt else {
             return 0
         }
-        let daySlotLengthSeconds = activeDaySlotLengthSeconds ?? slotLengthSeconds ?? Self.defaultDaySlotLengthSeconds
+        _ = slotLengthSeconds
 
         activeDayStartedAt = nil
         activeDaySlotLengthSeconds = nil
         saveDayState()
 
-        guard finishedAt > startedAt else {
+        guard finishedAt >= startedAt else {
+            return 0
+        }
+
+        let dayInterval = activeDayInterval(for: startedAt, calendar: calendar)
+        let timelineStart = dayInterval?.start ?? startedAt
+        let timelineEnd = minDate(finishedAt, dayInterval?.end ?? finishedAt)
+        guard timelineEnd > timelineStart else {
             return 0
         }
 
         let generatedSessions = untrackedSessions(
-            from: startedAt,
-            to: finishedAt,
-            slotLengthSeconds: daySlotLengthSeconds,
+            from: timelineStart,
+            to: timelineEnd,
             additionalOccupiedIntervals: additionalOccupiedIntervals
         )
 
@@ -161,6 +173,7 @@ final class HistoryStore: ObservableObject {
 
         return finishDay(
             at: finishedAt,
+            calendar: calendar,
             additionalOccupiedIntervals: additionalOccupiedIntervals
         )
     }
@@ -186,11 +199,9 @@ final class HistoryStore: ObservableObject {
     private func untrackedSessions(
         from startedAt: Date,
         to finishedAt: Date,
-        slotLengthSeconds: Int,
         idProvider: (Date, Date) -> UUID = { _, _ in UUID() },
         additionalOccupiedIntervals: [DateInterval] = []
     ) -> [FocusSession] {
-        let slotLength = TimeInterval(max(1, slotLengthSeconds))
         let occupied = mergedOccupiedIntervals(
             from: startedAt,
             to: finishedAt,
@@ -199,29 +210,23 @@ final class HistoryStore: ObservableObject {
         var generated: [FocusSession] = []
         var cursor = startedAt
 
-        func appendSlots(from gapStart: Date, to gapEnd: Date) {
-            var slotStart = gapStart
-            while slotStart < gapEnd {
-                let proposedEnd = slotStart.addingTimeInterval(slotLength)
-                let slotEnd = minDate(proposedEnd, gapEnd)
-                guard slotEnd > slotStart else {
-                    break
-                }
-
-                generated.append(FocusSession(
-                    id: idProvider(slotStart, slotEnd),
-                    topic: nil,
-                    startedAt: slotStart,
-                    endedAt: slotEnd,
-                    kind: .untracked
-                ))
-                slotStart = slotEnd
+        func appendGap(from gapStart: Date, to gapEnd: Date) {
+            guard gapEnd > gapStart else {
+                return
             }
+
+            generated.append(FocusSession(
+                id: idProvider(gapStart, gapEnd),
+                topic: nil,
+                startedAt: gapStart,
+                endedAt: gapEnd,
+                kind: .untracked
+            ))
         }
 
         for interval in occupied {
             if cursor < interval.start {
-                appendSlots(from: cursor, to: interval.start)
+                appendGap(from: cursor, to: interval.start)
             }
 
             if cursor < interval.end {
@@ -230,13 +235,13 @@ final class HistoryStore: ObservableObject {
         }
 
         if cursor < finishedAt {
-            appendSlots(from: cursor, to: finishedAt)
+            appendGap(from: cursor, to: finishedAt)
         }
 
         return generated
     }
 
-    private func deterministicSlotID(startedAt: Date, endedAt: Date) -> UUID {
+    private func deterministicGapID(startedAt: Date, endedAt: Date) -> UUID {
         let startMillis = UInt64(bitPattern: Int64((startedAt.timeIntervalSince1970 * 1_000).rounded()))
         let endMillis = UInt64(bitPattern: Int64((endedAt.timeIntervalSince1970 * 1_000).rounded()))
         let uuidString = String(
@@ -373,7 +378,11 @@ final class HistoryStore: ObservableObject {
     }
 
     private func activeDayEnd(for startedAt: Date, calendar: Calendar) -> Date? {
-        calendar.dateInterval(of: .day, for: startedAt)?.end
+        activeDayInterval(for: startedAt, calendar: calendar)?.end
+    }
+
+    private func activeDayInterval(for startedAt: Date, calendar: Calendar) -> DateInterval? {
+        calendar.dateInterval(of: .day, for: startedAt)
     }
 
     private struct DayState: Codable {

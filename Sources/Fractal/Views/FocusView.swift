@@ -181,11 +181,7 @@ struct FocusView: View {
         formatter.timeStyle = .short
         formatter.dateStyle = .none
 
-        if let slotLength = historyStore.activeDaySlotLengthSeconds {
-            return "Day started at \(formatter.string(from: startedAt)) - \(FractalCopy.duration(slotLength)) slots"
-        }
-
-        return "Day started at \(formatter.string(from: startedAt))"
+        return "Day started at \(formatter.string(from: startedAt)) - flexible free time"
     }
 
     private var statusText: String {

@@ -422,6 +422,68 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
+    func testLoggingPartOfUntrackedGapSplitsRemainingFreeTime() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let gap = FocusSession(
+                topic: nil,
+                startedAt: date(year: 2026, month: 5, day: 19, hour: 9),
+                endedAt: date(year: 2026, month: 5, day: 19, hour: 12),
+                kind: .untracked
+            )
+            let loggedStart = date(year: 2026, month: 5, day: 19, hour: 10)
+            let loggedEnd = date(year: 2026, month: 5, day: 19, hour: 10, minute: 30)
+
+            store.append(gap)
+
+            let didLog = store.logFocusedSession(
+                topic: "Email triage",
+                startedAt: loggedStart,
+                endedAt: loggedEnd,
+                replacingUntrackedSessionID: gap.id
+            )
+
+            XCTAssertTrue(didLog)
+            XCTAssertEqual(store.sessions.map(\.kind), [.untracked, .focused, .untracked])
+            XCTAssertEqual(store.sessions.map(\.startedAt), [
+                gap.startedAt,
+                loggedStart,
+                loggedEnd
+            ])
+            XCTAssertEqual(store.sessions.map(\.endedAt), [
+                loggedStart,
+                loggedEnd,
+                gap.endedAt
+            ])
+            XCTAssertEqual(store.sessions[1].id, gap.id)
+            XCTAssertEqual(store.sessions[1].topic, "Email triage")
+        }
+    }
+
+    func testLoggingUntrackedGapRejectsBlankTitle() async {
+        await MainActor.run {
+            let store = HistoryStore(fileURL: temporaryHistoryURL())
+            let gap = FocusSession(
+                topic: nil,
+                startedAt: date(year: 2026, month: 5, day: 19, hour: 9),
+                endedAt: date(year: 2026, month: 5, day: 19, hour: 10),
+                kind: .untracked
+            )
+
+            store.append(gap)
+
+            let didLog = store.logFocusedSession(
+                topic: " ",
+                startedAt: gap.startedAt,
+                endedAt: gap.endedAt,
+                replacingUntrackedSessionID: gap.id
+            )
+
+            XCTAssertFalse(didLog)
+            XCTAssertEqual(store.sessions, [gap])
+        }
+    }
+
     func testAppendingAfterMalformedLoadOverwritesWithValidHistory() async {
         await MainActor.run {
             let url = temporaryHistoryURL()

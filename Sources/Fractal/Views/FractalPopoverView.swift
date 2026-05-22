@@ -59,7 +59,10 @@ struct FractalPopoverView: View {
                             historyStore: historyStore
                         )
                     case .history:
-                        HistoryView(historyStore: historyStore)
+                        HistoryView(
+                            historyStore: historyStore,
+                            defaultLogDurationSeconds: settings.blockLengthSeconds
+                        )
                     case .settings:
                         FractalSettingsView(
                             settings: settings,

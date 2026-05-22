@@ -63,13 +63,29 @@ struct FocusView: View {
                 startDayControl
             } else {
                 controls
-
-                Text(dayStatusText)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .lineLimit(1)
+                activeDayFooter
             }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var activeDayFooter: some View {
+        HStack(spacing: 10) {
+            Text(dayStatusText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            Button {
+                finishCurrentDay()
+            } label: {
+                Label("End Day", systemImage: "sunset.fill")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(FractalCompactButtonStyle())
         }
         .frame(maxWidth: .infinity)
     }
@@ -149,6 +165,11 @@ struct FocusView: View {
 
     private var startLabel: String {
         timer.state == .paused ? "Resume" : "Start"
+    }
+
+    private func finishCurrentDay() {
+        let occupiedIntervals = timer.currentBlockInterval().map { [$0] } ?? []
+        historyStore.finishDay(additionalOccupiedIntervals: occupiedIntervals)
     }
 
     private var dayStatusText: String {

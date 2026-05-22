@@ -76,6 +76,80 @@ final class HistoryStore: ObservableObject {
         save()
     }
 
+    @discardableResult
+    func logFocusedSession(
+        topic: String,
+        startedAt: Date,
+        endedAt: Date,
+        replacingUntrackedSessionID: UUID? = nil
+    ) -> Bool {
+        guard let trimmedTopic = topic.trimmedNonEmpty else {
+            return false
+        }
+
+        if
+            let replacingUntrackedSessionID,
+            let index = sessions.firstIndex(where: { $0.id == replacingUntrackedSessionID && $0.isUntracked })
+        {
+            let untrackedSession = sessions[index]
+            let boundedStart = minDate(
+                maxDate(startedAt, untrackedSession.startedAt),
+                untrackedSession.endedAt
+            )
+            let boundedEnd = minDate(
+                maxDate(endedAt, boundedStart.addingTimeInterval(60)),
+                untrackedSession.endedAt
+            )
+
+            guard boundedEnd > boundedStart else {
+                return false
+            }
+
+            var replacements: [FocusSession] = []
+
+            if boundedStart > untrackedSession.startedAt {
+                replacements.append(FocusSession(
+                    topic: nil,
+                    startedAt: untrackedSession.startedAt,
+                    endedAt: boundedStart,
+                    kind: .untracked
+                ))
+            }
+
+            replacements.append(FocusSession(
+                id: untrackedSession.id,
+                topic: trimmedTopic,
+                startedAt: boundedStart,
+                endedAt: boundedEnd,
+                kind: .focused
+            ))
+
+            if boundedEnd < untrackedSession.endedAt {
+                replacements.append(FocusSession(
+                    topic: nil,
+                    startedAt: boundedEnd,
+                    endedAt: untrackedSession.endedAt,
+                    kind: .untracked
+                ))
+            }
+
+            sessions.remove(at: index)
+            sessions.append(contentsOf: replacements)
+            sessions.sort { $0.startedAt < $1.startedAt }
+            save()
+            return true
+        }
+
+        let normalizedEnd = endedAt > startedAt ? endedAt : startedAt.addingTimeInterval(60)
+        append(FocusSession(
+            topic: trimmedTopic,
+            startedAt: startedAt,
+            endedAt: normalizedEnd,
+            kind: .focused
+        ))
+        return true
+    }
+
     func updateSession(
         id: UUID,
         topic: String?,
